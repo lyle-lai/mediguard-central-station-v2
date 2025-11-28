@@ -1,0 +1,5 @@
+{
+  "name": "MediGuard Central StationV2",
+  "description": "A centralized medical device monitoring system visualizing real-time vital signs from IoT data streams, featuring AI-assisted clinical analysis.",
+  "requestFramePermissions": []
+}
