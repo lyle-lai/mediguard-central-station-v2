@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { PatientData, AppView, SystemSettings, VitalStatus, DepartmentCode, User, Department, UserRole, DeviceDisplayConfig, AlarmThresholdItem } from './types';
+import { PatientData, AppView, SystemSettings, VitalStatus, DepartmentCode, User, Department, UserRole, DeviceDisplayConfig, AlarmThresholdItem, DepartmentDTO } from './types';
 import { DEFAULT_DEVICE_CONFIGS, DEFAULT_DEPT_CAPACITY, DEFAULT_ALARM_THRESHOLDS, DEFAULT_BED_LABELS } from './constants';
-import { admitPatientApi, dischargePatientApi, updatePatientConfigApi, updateDepartmentCapacity, updateDepartmentDeviceConfig, updateDepartmentAlarms, fetchGlobalConfig, fetchAllPatientsApi } from './services/apiService';
+import { admitPatientApi, dischargePatientApi, updatePatientConfigApi, updateDepartmentCapacity, updateDepartmentDeviceConfig, updateDepartmentAlarms, fetchGlobalConfig, fetchAllPatientsApi, createDepartmentApi, deleteDepartmentApi, fetchDepartmentsApi } from './services/apiService';
 import { forceTriggerAlarm } from './services/iotSimulator';
 import { useRealtimeData } from './hooks/useRealtimeData';
 
@@ -13,6 +13,7 @@ import PatientDetail from './components/PatientDetail';
 import SettingsView from './components/SettingsView';
 import PatientListView from './components/PatientListView';
 import AlarmHistoryView from './components/AlarmHistoryView';
+import AdminDashboard from './components/admin/AdminDashboard';
 import AddPatientModal from './components/AddPatientModal';
 import BedConfigModal from './components/BedConfigModal';
 import LoginPage from './components/LoginPage';
@@ -25,7 +26,7 @@ const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [selectedDepartment, setSelectedDepartment] = useState<Department>(Department.ICU);
+    const [selectedDepartment, setSelectedDepartment] = useState<Department>(DepartmentCode.ICU);
     const [isDeptMenuOpen, setIsDeptMenuOpen] = useState(false);
     const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
     const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false);
@@ -36,6 +37,9 @@ const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [sortByOccupancy, setSortByOccupancy] = useState(false);
     const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+    // For Admin Dashboard
+    const [departmentList, setDepartmentList] = useState<DepartmentDTO[]>([]);
 
     const [settings, setSettings] = useState<SystemSettings>({
         isDemoMode: true,
@@ -79,6 +83,26 @@ const App: React.FC = () => {
 
     useEffect(() => { setCurrentPage(1); }, [selectedDepartment, settings.filterType, settings.layoutMode, sortByOccupancy]);
     useEffect(() => { const timer = setInterval(() => setCurrentTime(new Date()), 1000); return () => clearInterval(timer); }, []);
+
+    // Init Departments List (for Admin & Switching)
+    useEffect(() => {
+        if (!settings.isDemoMode && currentUser) {
+            // Use the new API for fetching department list
+            fetchDepartmentsApi().then(data => {
+                setDepartmentList(data);
+            }).catch(console.error);
+        } else {
+            // Demo Mode Initialization
+            const depts: DepartmentDTO[] = Object.keys(settings.deptCapacity).map(code => ({
+                id: code,
+                code: code,
+                name: (DepartmentCode as any)[code] || code,
+                capacity: settings.deptCapacity[code]
+            }));
+            setDepartmentList(depts);
+        }
+    }, [settings.isDemoMode, currentUser]);
+
 
     // FETCH CONFIG ON DEPARTMENT CHANGE (Real Mode)
     useEffect(() => {
@@ -198,6 +222,104 @@ const App: React.FC = () => {
         setSettings(newSettings); // For simple local toggles like DemoMode, Audio, NightMode
     };
 
+    // --- Admin Dashboard Handlers ---
+
+    const handleAddDepartment = async (code: string, name: string, capacity: number) => {
+        const safeCode = code.trim().toUpperCase();
+
+        // 1. Optimistic Update (Immediate Feedback)
+        // Store full capacity here to prevent "0" flash in UI
+        const optimisticDept: DepartmentDTO = { id: safeCode, code: safeCode, name, capacity };
+
+        setDepartmentList(prev => {
+            if (prev.find(d => d.code === safeCode)) return prev;
+            return [...prev, optimisticDept];
+        });
+
+        // Initialize local settings map for the new department to avoid crashes
+        setSettings(prev => ({
+            ...prev,
+            deptCapacity: { ...prev.deptCapacity, [safeCode]: capacity },
+            deviceConfigs: { ...prev.deviceConfigs, [safeCode]: JSON.parse(JSON.stringify(DEFAULT_DEVICE_CONFIGS.ICU)) },
+            alarmThresholds: { ...prev.alarmThresholds, [safeCode]: JSON.parse(JSON.stringify(DEFAULT_ALARM_THRESHOLDS.ICU)) },
+            bedLabels: { ...prev.bedLabels, [safeCode]: {} }
+        }));
+
+        if (settings.isDemoMode) {
+            addToast(`科室 ${name} 已创建 (模拟)`, 'success');
+        } else {
+            try {
+                // 2. Call Create API
+                await createDepartmentApi(safeCode, name, capacity);
+
+                // 3. Force Capacity Update API
+                // This ensures that even if createDepartmentApi doesn't fully persist capacity config, this call will.
+                await updateDepartmentCapacity(safeCode, capacity, {});
+
+                // 4. RE-FETCH SOURCE OF TRUTH
+                // This guarantees the frontend list is in sync with backend, fixing the 0 capacity issue.
+                const freshList = await fetchDepartmentsApi();
+                setDepartmentList(freshList);
+
+                // 5. Sync Settings Map
+                // Ensure the settings map (which powers dashboard grid) is also in sync with fresh data
+                setSettings(prev => {
+                    const updatedCaps = { ...prev.deptCapacity };
+                    freshList.forEach(d => {
+                        if (d.capacity) updatedCaps[d.code] = d.capacity;
+                    });
+                    return { ...prev, deptCapacity: updatedCaps };
+                });
+
+                addToast(`科室 ${name} 创建成功`, 'success');
+            } catch (e) {
+                console.error(e);
+                addToast('创建科室失败，请检查网络', 'error');
+                // Rollback optimistic update if failed
+                setDepartmentList(prev => prev.filter(d => d.code !== safeCode));
+            }
+        }
+    };
+
+    const handleDeleteDepartment = async (code: string) => {
+        if (settings.isDemoMode) {
+            const newCapacity = { ...settings.deptCapacity };
+            delete newCapacity[code];
+            setSettings(prev => ({ ...prev, deptCapacity: newCapacity }));
+            setDepartmentList(prev => prev.filter(d => d.code !== code));
+            addToast(`科室 ${code} 已删除 (模拟)`, 'success');
+        } else {
+            try {
+                await deleteDepartmentApi(code);
+                setDepartmentList(prev => prev.filter(d => d.code !== code));
+                addToast(`科室 ${code} 删除成功`, 'success');
+            } catch (e) {
+                addToast('删除科室失败', 'error');
+            }
+        }
+    };
+
+    const handleUpdateAdminCapacity = async (code: string, capacity: number) => {
+        // Re-use existing handler logic but for arbitrary code
+        if (settings.isDemoMode) {
+            setSettings(prev => ({
+                ...prev,
+                deptCapacity: { ...prev.deptCapacity, [code]: capacity }
+            }));
+            addToast('容量已更新 (模拟)', 'success');
+        } else {
+            try {
+                await updateDepartmentCapacity(code, capacity, settings.bedLabels[code] || {});
+                addToast('容量已同步', 'success');
+            } catch (e) {
+                addToast('更新失败', 'error');
+            }
+        }
+        // Sync local list
+        setDepartmentList(prev => prev.map(d => d.code === code ? { ...d, capacity } : d));
+    };
+
+
     // --- Patient Management Handlers ---
 
     const handleSaveNewPatient = async (data: Partial<PatientData>) => {
@@ -254,12 +376,8 @@ const App: React.FC = () => {
     };
 
     // --- Render Logic ---
-    const getDeptPrefix = (dept: Department) => {
-        if (dept.includes('重症')) return 'ICU';
-        if (dept.includes('手术')) return 'OR';
-        if (dept.includes('急诊')) return 'ER';
-        if (dept.includes('新生儿')) return 'N';
-        return 'Gen';
+    const getDeptPrefix = (dept: string) => {
+        return 'Bed';
     };
 
     const currentDeptCapacity = settings.deptCapacity[selectedDepartment] || 16;
@@ -383,6 +501,15 @@ const App: React.FC = () => {
                                     onTriggerAlarm={handleTriggerAlarm}
                                     currentUser={currentUser}
                                     currentDepartment={selectedDepartment}
+                                />
+                            )}
+                            {currentView === AppView.ADMIN && currentUser.role === UserRole.ADMIN && (
+                                <AdminDashboard
+                                    departments={departmentList}
+                                    deptCapacities={settings.deptCapacity}
+                                    onAddDepartment={handleAddDepartment}
+                                    onUpdateDepartment={handleUpdateAdminCapacity}
+                                    onDeleteDepartment={handleDeleteDepartment}
                                 />
                             )}
                         </>

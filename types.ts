@@ -23,7 +23,7 @@ export enum DepartmentCode {
 }
 
 export enum AlarmCategoryCode {
-  PHYSIOLOGICAL = 'PHYSIOLOGICAL', 
+  PHYSIOLOGICAL = 'PHYSIOLOGICAL',
   TECHNICAL = 'TECHNICAL'
 }
 
@@ -37,7 +37,8 @@ export enum AppView {
   DASHBOARD = 'DASHBOARD',
   PATIENTS = 'PATIENTS',
   ALARMS = 'ALARMS',
-  SETTINGS = 'SETTINGS'
+  SETTINGS = 'SETTINGS',
+  ADMIN = 'ADMIN'
 }
 
 export enum AlarmPriority {
@@ -61,7 +62,7 @@ export const DeviceTypeDesc: Record<DeviceTypeCode, string> = {
   [DeviceTypeCode.ANESTHESIA]: '麻醉机'
 };
 
-export const DepartmentDesc: Record<DepartmentCode, string> = {
+export const DepartmentDesc: Record<string, string> = {
   [DepartmentCode.ICU]: '重症医学科 (ICU)',
   [DepartmentCode.OR]: '手术室 (OR)',
   [DepartmentCode.ER]: '急诊科 (ER)',
@@ -74,7 +75,7 @@ export type VitalStatus = VitalStatusCode;
 export const VitalStatus = VitalStatusCode;
 export type DeviceType = DeviceTypeCode;
 export const DeviceType = DeviceTypeCode;
-export type Department = DepartmentCode;
+export type Department = DepartmentCode | string;
 export const Department = DepartmentCode;
 export type AlarmCategory = AlarmCategoryCode;
 export const AlarmCategory = AlarmCategoryCode;
@@ -83,9 +84,10 @@ export const AlarmCategory = AlarmCategoryCode;
 // --- Data Models ---
 
 export interface DepartmentDTO {
-    id: string;
-    code: DepartmentCode;
-    name: string;
+  id: string;
+  code: string;
+  name: string;
+  capacity?: number;
 }
 
 export interface User {
@@ -102,7 +104,7 @@ export interface Waveform {
   id: string;
   label: string;
   color: string;
-  data: number[]; 
+  data: number[];
 }
 
 export interface Parameter {
@@ -119,11 +121,11 @@ export interface PatientDisplaySettings {
 }
 
 export interface PatientData {
-  id: string; 
+  id: string;
   deviceId: string; // Physical device binding
   bedNumber: string;
   bedLabel?: string; // Custom display name for the bed
-  department: DepartmentCode;
+  department: string;
   deviceType: DeviceTypeCode;
   connectedDevices: DeviceTypeCode[];
   name: string;
@@ -139,7 +141,7 @@ export interface PatientData {
     isAcknowledged?: boolean;
     priority?: AlarmPriority;
   };
-  alarmDuration?: number; 
+  alarmDuration?: number;
   violationCounters?: Record<string, number>; // Tracks duration of threshold violation
   parameters: Parameter[];
   waveforms: Waveform[];
@@ -157,7 +159,7 @@ export interface AlarmRecord {
   timestamp: Date;
   patientId: string;
   patientName: string;
-  department: DepartmentCode;
+  department: string;
   bedNumber: string;
   deviceType: DeviceTypeCode;
   type: VitalStatusCode;
@@ -205,13 +207,13 @@ export type DeviceDisplayConfig = {
 };
 
 export interface AlarmThresholdItem {
-    paramId: string;
-    label: string;
-    min?: number;
-    max?: number;
-    delay: number; // seconds
-    priority: AlarmPriority;
-    enabled: boolean;
+  paramId: string;
+  label: string;
+  min?: number;
+  max?: number;
+  delay: number; // seconds
+  priority: AlarmPriority;
+  enabled: boolean;
 }
 
 export type AlarmRule = AlarmThresholdItem;
@@ -223,12 +225,12 @@ export interface SystemSettings {
   simulationSpeed: number;
   filterType: DeviceTypeCode | 'ALL';
   // CHANGED: Map Department -> Config
-  deviceConfigs: Record<DepartmentCode, DeviceDisplayConfig>;
-  deptCapacity: Record<DepartmentCode, number>;
+  deviceConfigs: Record<string, DeviceDisplayConfig>;
+  deptCapacity: Record<string, number>;
   // CHANGED: Map Department -> Thresholds
-  alarmThresholds: Record<DepartmentCode, AlarmThresholdItem[]>;
+  alarmThresholds: Record<string, AlarmThresholdItem[]>;
   // NEW: Map Dept -> BedID -> CustomLabel
-  bedLabels: Record<DepartmentCode, Record<string, string>>; 
+  bedLabels: Record<string, Record<string, string>>;
   nightMode: boolean;
 }
 
@@ -236,7 +238,7 @@ export interface IoTDevice {
   deviceId: string;
   serialNumber: string;
   deviceType: DeviceTypeCode;
-  department: DepartmentCode;
+  department: string;
   status: 'ONLINE' | 'OFFLINE';
   ipAddress: string;
 }
@@ -244,15 +246,15 @@ export interface IoTDevice {
 // --- API DTOs ---
 
 export interface DictionaryItem {
-    code: string;
-    label: string;
-    capacity?: number;
+  code: string;
+  label: string;
+  capacity?: number;
 }
 
 export interface SystemDictionaries {
-    deviceTypes: DictionaryItem[];
-    departments: DictionaryItem[]; // Should remain for Admin assignment/reference
-    alarmLevels: DictionaryItem[];
+  deviceTypes: DictionaryItem[];
+  departments: DictionaryItem[]; // Should remain for Admin assignment/reference
+  alarmLevels: DictionaryItem[];
 }
 
 // WebSocket Message (Batch)
@@ -262,7 +264,7 @@ export interface DeviceRealtimeDataDTO {
   seq?: number;
   // Waveforms are arrays (Batch of points, e.g. 1 second worth)
   // Key: waveform ID (ecg, spo2), Value: Array of numbers
-  waveforms: Record<string, number[]>; 
+  waveforms: Record<string, number[]>;
   // Parameters can be sparse (key-value)
   parameters: Record<string, string | number>;
   // Active alarms list

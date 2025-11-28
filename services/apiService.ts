@@ -1,5 +1,5 @@
 
-import { PatientData, AlarmRecord, IoTDevice, ApiResponse, DepartmentCode, PatientDisplaySettings, SystemSettings, TrendDataPoint, SystemDictionaries, AlarmSnapshot, DeviceDisplayConfig, AlarmThresholdItem, LoginResponse } from '../types';
+import { PatientData, AlarmRecord, IoTDevice, ApiResponse, DepartmentCode, PatientDisplaySettings, SystemSettings, TrendDataPoint, SystemDictionaries, AlarmSnapshot, DeviceDisplayConfig, AlarmThresholdItem, LoginResponse, DepartmentDTO } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -39,7 +39,7 @@ export const fetchDictionariesApi = async (): Promise<SystemDictionaries> => {
 
 // Fetch ALL config for a department (Initialization)
 // Now returns a simplified object matching the response of GET /departments/{id}/config
-export const fetchGlobalConfig = async (departmentCode: DepartmentCode): Promise<Partial<SystemSettings>> => {
+export const fetchGlobalConfig = async (departmentCode: string): Promise<Partial<SystemSettings>> => {
   return fetchApi<Partial<SystemSettings>>(`/departments/${departmentCode}/config`);
 };
 
@@ -47,7 +47,7 @@ export const fetchGlobalConfig = async (departmentCode: DepartmentCode): Promise
 
 // 1. Bed Capacity & Labels
 export const updateDepartmentCapacity = async (
-  departmentCode: DepartmentCode,
+  departmentCode: string,
   capacity: number,
   bedLabels: Record<string, string>
 ): Promise<void> => {
@@ -59,7 +59,7 @@ export const updateDepartmentCapacity = async (
 
 // 2. Device Configs (Waveforms/Params)
 export const updateDepartmentDeviceConfig = async (
-  departmentCode: DepartmentCode,
+  departmentCode: string,
   config: DeviceDisplayConfig
 ): Promise<void> => {
   return fetchApi<void>(`/departments/${departmentCode}/device-configs`, {
@@ -70,12 +70,31 @@ export const updateDepartmentDeviceConfig = async (
 
 // 3. Alarm Thresholds
 export const updateDepartmentAlarms = async (
-  departmentCode: DepartmentCode,
+  departmentCode: string,
   thresholds: AlarmThresholdItem[]
 ): Promise<void> => {
   return fetchApi<void>(`/departments/${departmentCode}/alarm-thresholds`, {
     method: 'PUT',
     body: JSON.stringify(thresholds),
+  });
+};
+
+// --- Department Management (Admin) ---
+
+export const fetchDepartmentsApi = async (): Promise<DepartmentDTO[]> => {
+  return fetchApi<DepartmentDTO[]>('/admin/departments');
+};
+
+export const createDepartmentApi = async (code: string, name: string, capacity: number): Promise<DepartmentDTO> => {
+  return fetchApi<DepartmentDTO>('/admin/departments', {
+    method: 'POST',
+    body: JSON.stringify({ code, name, capacity }),
+  });
+};
+
+export const deleteDepartmentApi = async (code: string): Promise<void> => {
+  return fetchApi<void>(`/admin/departments/${code}`, {
+    method: 'DELETE',
   });
 };
 
@@ -124,7 +143,7 @@ export const fetchAvailableDevicesApi = async (): Promise<IoTDevice[]> => {
 
 // --- Alarm Management ---
 
-export const fetchAlarmHistoryApi = async (department?: DepartmentCode): Promise<AlarmRecord[]> => {
+export const fetchAlarmHistoryApi = async (department?: string): Promise<AlarmRecord[]> => {
   const query = department ? `?department=${department}` : '';
   const data = await fetchApi<any[]>(`/alarms${query}`);
   return data.map(a => ({

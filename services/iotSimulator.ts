@@ -28,7 +28,7 @@ const updateDeviceWaveforms = (p: PatientData, deviceType: DeviceType, config: D
         if (isStandby) {
             newValue = 50;
         } else if (isLeadOff && (id.includes('ecg') || id.includes('spo2'))) {
-             newValue = 50 + (Math.random() * 2 - 1); 
+            newValue = 50 + (Math.random() * 2 - 1);
         } else {
             const t = timeStep * 1.5 + tOffset;
             if (id.includes('ecg')) newValue = MathUtils.generateECG(t, id === 'ecg' ? 0 : 20);
@@ -40,9 +40,9 @@ const updateDeviceWaveforms = (p: PatientData, deviceType: DeviceType, config: D
             else if (id.includes('art')) newValue = MathUtils.generateART(t);
             else if (id.includes('cvp')) newValue = MathUtils.generateCVP(t);
             else if (id.includes('agent')) newValue = MathUtils.generateAgent(timeStep + tOffset);
-            else if (id.includes('vol')) newValue = MathUtils.generateResp(timeStep + tOffset); 
+            else if (id.includes('vol')) newValue = MathUtils.generateResp(timeStep + tOffset);
             else {
-                const seed = id.split('').reduce((a,b) => a + b.charCodeAt(0), 0);
+                const seed = id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
                 newValue = MathUtils.generateGeneric(t, seed);
             }
         }
@@ -51,7 +51,7 @@ const updateDeviceWaveforms = (p: PatientData, deviceType: DeviceType, config: D
         return {
             id,
             label: conf ? conf.label : id.toUpperCase(),
-            color: isStandby ? '#4b5563' : (conf ? conf.color : '#ffffff'), 
+            color: isStandby ? '#4b5563' : (conf ? conf.color : '#ffffff'),
             data: [...prevData, newValue]
         };
     });
@@ -66,8 +66,8 @@ const updateDeviceParameters = (p: PatientData, deviceType: DeviceType, config: 
         if (deviceType === DeviceType.VENTILATOR) {
             // Vent logic usually Ppeak
         } else {
-            hrBase = 155 + Math.random() * 10; 
-            spo2Base = 88 + Math.random() * 2; 
+            hrBase = 155 + Math.random() * 10;
+            spo2Base = 88 + Math.random() * 2;
         }
     }
 
@@ -75,7 +75,7 @@ const updateDeviceParameters = (p: PatientData, deviceType: DeviceType, config: 
 
     return deviceParamsConfig.map(conf => {
         let val: string | number = '--';
-        
+
         if (!isStandby) {
             switch (conf.id) {
                 case 'hr': val = Math.round(hrBase); break;
@@ -92,7 +92,7 @@ const updateDeviceParameters = (p: PatientData, deviceType: DeviceType, config: 
                 case 'energy': val = 200; break;
                 case 'cvp': val = 8; break;
                 default:
-                    const seed = conf.id.split('').reduce((a,b) => a + b.charCodeAt(0), 0);
+                    const seed = conf.id.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
                     val = Math.round(50 + 20 * Math.sin(timeStep * 0.05 + seed));
                     break;
             }
@@ -103,61 +103,61 @@ const updateDeviceParameters = (p: PatientData, deviceType: DeviceType, config: 
             label: conf.label,
             value: val,
             unit: conf.unit,
-            isAlarm: false 
+            isAlarm: false
         };
     });
 };
 
 const createPatientInBed = (dept: Department, bedNum: string): PatientData => {
-  const rand = Math.random();
-  let primaryType: DeviceType;
-  let connectedDevices: DeviceType[] = [];
+    const rand = Math.random();
+    let primaryType: DeviceType;
+    let connectedDevices: DeviceType[] = [];
 
-  if (dept === Department.ICU) { 
-      if (rand < 0.2) {
-          primaryType = DeviceType.VENTILATOR;
-          connectedDevices.push(DeviceType.VENTILATOR);
-      } else {
-          primaryType = DeviceType.MONITOR;
-          connectedDevices.push(DeviceType.MONITOR);
-          if (rand > 0.6) connectedDevices.push(DeviceType.VENTILATOR);
-      }
-  }
-  else if (dept === Department.OR) { 
-      primaryType = DeviceType.ANESTHESIA; 
-      connectedDevices.push(DeviceType.ANESTHESIA);
-      if (rand > 0.5) connectedDevices.push(DeviceType.MONITOR);
-  }
-  else if (dept === Department.ER) { 
-      primaryType = DeviceType.MONITOR; 
-      connectedDevices.push(primaryType);
-  }
-  else { 
-      primaryType = DeviceType.MONITOR; 
-      connectedDevices.push(DeviceType.MONITOR);
-  }
+    if (dept === Department.ICU) {
+        if (rand < 0.2) {
+            primaryType = DeviceType.VENTILATOR;
+            connectedDevices.push(DeviceType.VENTILATOR);
+        } else {
+            primaryType = DeviceType.MONITOR;
+            connectedDevices.push(DeviceType.MONITOR);
+            if (rand > 0.6) connectedDevices.push(DeviceType.VENTILATOR);
+        }
+    }
+    else if (dept === Department.OR) {
+        primaryType = DeviceType.ANESTHESIA;
+        connectedDevices.push(DeviceType.ANESTHESIA);
+        if (rand > 0.5) connectedDevices.push(DeviceType.MONITOR);
+    }
+    else if (dept === Department.ER) {
+        primaryType = DeviceType.MONITOR;
+        connectedDevices.push(primaryType);
+    }
+    else {
+        primaryType = DeviceType.MONITOR;
+        connectedDevices.push(DeviceType.MONITOR);
+    }
 
-  connectedDevices = Array.from(new Set(connectedDevices));
-  const startWithAlarm = Math.random() < 0.05; 
-  const isStandby = Math.random() < 0.1;
+    connectedDevices = Array.from(new Set(connectedDevices));
+    const startWithAlarm = Math.random() < 0.05;
+    const isStandby = Math.random() < 0.1;
 
-  return {
-    id: `dev_${bedNum}_${Date.now()}`,
-    deviceId: `iot_${bedNum}_${Math.floor(Math.random() * 10000)}`,
-    bedNumber: bedNum,
-    department: dept,
-    deviceType: primaryType,
-    connectedDevices: connectedDevices,
-    name: generateRandomName(),
-    age: 30 + Math.floor(Math.random() * 50),
-    gender: Math.random() > 0.5 ? '男' : '女',
-    admissionId: `ZY-${2024000 + Math.floor(Math.random() * 1000)}`,
-    status: isStandby ? VitalStatus.STANDBY : (startWithAlarm ? VitalStatus.CRITICAL : VitalStatus.NORMAL),
-    parameters: [],
-    waveforms: [], 
-    alarmDuration: startWithAlarm ? 500 : 0,
-    violationCounters: {} 
-  };
+    return {
+        id: `dev_${bedNum}_${Date.now()}`,
+        deviceId: `iot_${bedNum}_${Math.floor(Math.random() * 10000)}`,
+        bedNumber: bedNum,
+        department: dept,
+        deviceType: primaryType,
+        connectedDevices: connectedDevices,
+        name: generateRandomName(),
+        age: 30 + Math.floor(Math.random() * 50),
+        gender: Math.random() > 0.5 ? '男' : '女',
+        admissionId: `ZY-${2024000 + Math.floor(Math.random() * 1000)}`,
+        status: isStandby ? VitalStatus.STANDBY : (startWithAlarm ? VitalStatus.CRITICAL : VitalStatus.NORMAL),
+        parameters: [],
+        waveforms: [],
+        alarmDuration: startWithAlarm ? 500 : 0,
+        violationCounters: {}
+    };
 };
 
 const generateRandomName = () => {
@@ -167,40 +167,38 @@ const generateRandomName = () => {
 };
 
 export const generateInitialData = (): PatientData[] => {
-  const patients: PatientData[] = [];
-  Object.values(Department).forEach(dept => {
-      const capacity = DEFAULT_DEPT_CAPACITY[dept];
-      const prefix = dept.split(' ')[0] === '重症医学科' ? 'ICU' 
-                   : dept.split(' ')[0] === '手术室' ? 'OR' 
-                   : dept.split(' ')[0] === '急诊科' ? 'ER' 
-                   : dept.split(' ')[0] === '新生儿科' ? 'N' : 'Gen';
+    const patients: PatientData[] = [];
+    Object.values(Department).forEach(dept => {
+        const capacity = DEFAULT_DEPT_CAPACITY[dept];
 
-      for (let i = 1; i <= capacity; i++) {
-          if (Math.random() > 0.3) {
-              const bedNum = `${prefix}-${String(i).padStart(2, '0')}`;
-              patients.push(createPatientInBed(dept, bedNum));
-          }
-      }
-  });
-  return patients;
+        const prefix = 'Bed';
+
+        for (let i = 1; i <= capacity; i++) {
+            if (Math.random() > 0.3) {
+                const bedNum = `${prefix}-${String(i).padStart(2, '0')}`;
+                patients.push(createPatientInBed(dept, bedNum));
+            }
+        }
+    });
+    return patients;
 };
 
 export const forceTriggerAlarm = (patients: PatientData[], department: Department): PatientData[] => {
     const candidates = patients.filter(p => p.department === department && p.status !== VitalStatus.STANDBY);
     if (candidates.length === 0) return patients;
     const victim = candidates[Math.floor(Math.random() * candidates.length)];
-    
+
     return patients.map(p => {
         if (p.id === victim.id) {
-            return { ...p, alarmDuration: 100 }; 
+            return { ...p, alarmDuration: 100 };
         }
         return p;
     });
 };
 
 // --- RULE ENGINE ---
-const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], violations: Record<string, number>): { 
-    activeAlarm?: { message: string, category: AlarmCategory, priority: AlarmPriority }, 
+const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], violations: Record<string, number>): {
+    activeAlarm?: { message: string, category: AlarmCategory, priority: AlarmPriority },
     newViolations: Record<string, number>,
     triggeredParams: string[]
 } => {
@@ -216,10 +214,10 @@ const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], 
 
     thresholds.forEach(rule => {
         if (!rule.enabled) return;
-        
+
         const param = params.find(p => p.id === rule.paramId);
         if (!param || typeof param.value !== 'number') {
-            newViolations[rule.paramId] = 0; 
+            newViolations[rule.paramId] = 0;
             return;
         }
 
@@ -227,17 +225,17 @@ const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], 
         let violating = false;
         let msg = '';
 
-        if (rule.max !== undefined && val > rule.max) {
+        if (rule.max !== undefined && rule.max !== null && val > rule.max) {
             violating = true;
             msg = `${rule.label} 过高 (${val} > ${rule.max})`;
-        } else if (rule.min !== undefined && val < rule.min) {
+        } else if (rule.min !== undefined && rule.min !== null && val < rule.min) {
             violating = true;
             msg = `${rule.label} 过低 (${val} < ${rule.min})`;
         }
 
         if (violating) {
-            newViolations[rule.paramId] = (newViolations[rule.paramId] || 0) + 0.1; 
-            
+            newViolations[rule.paramId] = (newViolations[rule.paramId] || 0) + 0.1;
+
             if (newViolations[rule.paramId] >= rule.delay) {
                 triggeredParams.push(rule.paramId);
                 if (!highestPriorityAlarm || isHigherPriority(rule.priority, highestPriorityAlarm.priority)) {
@@ -249,7 +247,7 @@ const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], 
                 }
             }
         } else {
-            newViolations[rule.paramId] = 0; 
+            newViolations[rule.paramId] = 0;
         }
     });
 
@@ -257,91 +255,91 @@ const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], 
 };
 
 export const simulateNextTick = (
-    currentPatients: PatientData[], 
-    speed: number, 
+    currentPatients: PatientData[],
+    speed: number,
     // Update: Map instead of Single Config
     deviceConfigsMap?: Record<DepartmentCode, DeviceDisplayConfig>,
     // Update: Map instead of Single Array
     alarmThresholdsMap?: Record<DepartmentCode, AlarmThresholdItem[]>
 ): PatientData[] => {
-  timeStep += speed;
+    timeStep += speed;
 
-  return currentPatients.map((p, idx) => {
-    // Lookup config for this patient's department
-    const configToUse = deviceConfigsMap ? deviceConfigsMap[p.department] : DEFAULT_DEVICE_CONFIGS[p.department];
-    const thresholdsToUse = alarmThresholdsMap ? alarmThresholdsMap[p.department] : DEFAULT_ALARM_THRESHOLDS[p.department];
+    return currentPatients.map((p, idx) => {
+        // Lookup config for this patient's department
+        const configToUse = deviceConfigsMap ? deviceConfigsMap[p.department] : DEFAULT_DEVICE_CONFIGS[p.department];
+        const thresholdsToUse = alarmThresholdsMap ? alarmThresholdsMap[p.department] : DEFAULT_ALARM_THRESHOLDS[p.department];
 
-    const isStandby = p.status === VitalStatus.STANDBY;
+        const isStandby = p.status === VitalStatus.STANDBY;
 
-    if (isStandby) {
-        const offset = idx * 123; 
+        if (isStandby) {
+            const offset = idx * 123;
+            let combinedParams: Parameter[] = [];
+            let combinedWaves: Waveform[] = [];
+
+            p.connectedDevices.forEach(dType => {
+                const dParams = updateDeviceParameters(p, dType, configToUse, offset, false);
+                const dWaves = updateDeviceWaveforms(p, dType, configToUse, offset);
+                dParams.forEach(np => { if (!combinedParams.find(cp => cp.id === np.id)) combinedParams.push(np); });
+                dWaves.forEach(nw => { if (!combinedWaves.find(cw => cw.id === nw.id)) combinedWaves.push(nw); });
+            });
+
+            return { ...p, activeAlarm: undefined, alarmDuration: 0, parameters: combinedParams, waveforms: combinedWaves, violationCounters: {} };
+        }
+
+        const remainingAlarm = p.alarmDuration ? Math.max(0, p.alarmDuration - 1) : 0;
+        let newAlarmDuration = remainingAlarm;
+
+        if (newAlarmDuration === 0 && Math.random() < 0.001) {
+            newAlarmDuration = 60;
+        }
+
+        const isForcedAlarm = newAlarmDuration > 0;
+        const offset = idx * 123;
+
         let combinedParams: Parameter[] = [];
         let combinedWaves: Waveform[] = [];
 
         p.connectedDevices.forEach(dType => {
-            const dParams = updateDeviceParameters(p, dType, configToUse, offset, false);
+            const dParams = updateDeviceParameters(p, dType, configToUse, offset, isForcedAlarm);
             const dWaves = updateDeviceWaveforms(p, dType, configToUse, offset);
             dParams.forEach(np => { if (!combinedParams.find(cp => cp.id === np.id)) combinedParams.push(np); });
             dWaves.forEach(nw => { if (!combinedWaves.find(cw => cw.id === nw.id)) combinedWaves.push(nw); });
         });
 
-        return { ...p, activeAlarm: undefined, alarmDuration: 0, parameters: combinedParams, waveforms: combinedWaves, violationCounters: {} };
-    }
+        let status = VitalStatus.NORMAL;
+        let activeAlarm = p.activeAlarm;
+        let violations = p.violationCounters || {};
 
-    const remainingAlarm = p.alarmDuration ? Math.max(0, p.alarmDuration - 1) : 0;
-    let newAlarmDuration = remainingAlarm;
+        if (thresholdsToUse) {
+            const result = checkAlarmRules(combinedParams, thresholdsToUse, violations);
+            violations = result.newViolations;
 
-    if (newAlarmDuration === 0 && Math.random() < 0.001) { 
-        newAlarmDuration = 60;
-    }
-
-    const isForcedAlarm = newAlarmDuration > 0;
-    const offset = idx * 123; 
-
-    let combinedParams: Parameter[] = [];
-    let combinedWaves: Waveform[] = [];
-
-    p.connectedDevices.forEach(dType => {
-        const dParams = updateDeviceParameters(p, dType, configToUse, offset, isForcedAlarm);
-        const dWaves = updateDeviceWaveforms(p, dType, configToUse, offset);
-        dParams.forEach(np => { if (!combinedParams.find(cp => cp.id === np.id)) combinedParams.push(np); });
-        dWaves.forEach(nw => { if (!combinedWaves.find(cw => cw.id === nw.id)) combinedWaves.push(nw); });
-    });
-
-    let status = VitalStatus.NORMAL;
-    let activeAlarm = p.activeAlarm; 
-    let violations = p.violationCounters || {};
-
-    if (thresholdsToUse) {
-        const result = checkAlarmRules(combinedParams, thresholdsToUse, violations);
-        violations = result.newViolations;
-        
-        if (result.activeAlarm) {
-            combinedParams = combinedParams.map(cp => ({ ...cp, isAlarm: result.triggeredParams.includes(cp.id) }));
-            status = result.activeAlarm.priority === AlarmPriority.HIGH ? VitalStatus.CRITICAL : VitalStatus.WARNING;
-            const isSameMsg = activeAlarm?.message === result.activeAlarm.message;
-            activeAlarm = {
-                message: result.activeAlarm.message,
-                category: result.activeAlarm.category,
-                timestamp: activeAlarm ? activeAlarm.timestamp : new Date(),
-                isAcknowledged: (activeAlarm?.isAcknowledged && isSameMsg) || false,
-                priority: result.activeAlarm.priority
-            };
-        } else {
-            if (isForcedAlarm && Math.random() > 0.8 && !activeAlarm) {
-                 status = VitalStatus.WARNING;
-                 activeAlarm = {
-                     message: 'SpO2 探头脱落', category: AlarmCategory.TECHNICAL, timestamp: new Date(),
-                     isAcknowledged: false, priority: AlarmPriority.MED
-                 };
-            } else if (!isForcedAlarm) {
-                activeAlarm = undefined;
+            if (result.activeAlarm) {
+                combinedParams = combinedParams.map(cp => ({ ...cp, isAlarm: result.triggeredParams.includes(cp.id) }));
+                status = result.activeAlarm.priority === AlarmPriority.HIGH ? VitalStatus.CRITICAL : VitalStatus.WARNING;
+                const isSameMsg = activeAlarm?.message === result.activeAlarm.message;
+                activeAlarm = {
+                    message: result.activeAlarm.message,
+                    category: result.activeAlarm.category,
+                    timestamp: activeAlarm ? activeAlarm.timestamp : new Date(),
+                    isAcknowledged: (activeAlarm?.isAcknowledged && isSameMsg) || false,
+                    priority: result.activeAlarm.priority
+                };
+            } else {
+                if (isForcedAlarm && Math.random() > 0.8 && !activeAlarm) {
+                    status = VitalStatus.WARNING;
+                    activeAlarm = {
+                        message: 'SpO2 探头脱落', category: AlarmCategory.TECHNICAL, timestamp: new Date(),
+                        isAcknowledged: false, priority: AlarmPriority.MED
+                    };
+                } else if (!isForcedAlarm) {
+                    activeAlarm = undefined;
+                }
             }
         }
-    }
 
-    return { ...p, status, activeAlarm, alarmDuration: newAlarmDuration, parameters: combinedParams, waveforms: combinedWaves, violationCounters: violations };
-  });
+        return { ...p, status, activeAlarm, alarmDuration: newAlarmDuration, parameters: combinedParams, waveforms: combinedWaves, violationCounters: violations };
+    });
 };
 
 export const captureAlarmSnapshot = (patient: PatientData): AlarmSnapshot => {
@@ -369,17 +367,17 @@ export const generateInitialAlarms = (patients: PatientData[]): AlarmRecord[] =>
             const msgs = ['HR > 120 bpm', 'SpO2 < 90%', 'Resp > 30 rpm', 'Apnea detected', 'PVCs detected', 'ST Elevation'];
             message = msgs[Math.floor(Math.random() * msgs.length)];
         } else {
-             const msgs = ['SpO2 Sensor Off', 'ECG Lead Off', 'Battery Low', 'Network Unstable'];
-             message = msgs[Math.floor(Math.random() * msgs.length)];
+            const msgs = ['SpO2 Sensor Off', 'ECG Lead Off', 'Battery Low', 'Network Unstable'];
+            message = msgs[Math.floor(Math.random() * msgs.length)];
         }
         alarms.push({
             id: `alarm_hist_${i}`, timestamp: timestamp, patientId: randomPatient.id, patientName: randomPatient.name,
             department: randomPatient.department, bedNumber: randomPatient.bedNumber, deviceType: randomPatient.deviceType,
             type: type, category: category, message: message, acknowledged: Math.random() > 0.4,
-            snapshot: captureAlarmSnapshot(randomPatient) 
+            snapshot: captureAlarmSnapshot(randomPatient)
         });
     }
-    return alarms.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
+    return alarms.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 }
 
 export const fetchAvailableIoTDevices = async (): Promise<IoTDevice[]> => {
@@ -388,7 +386,7 @@ export const fetchAvailableIoTDevices = async (): Promise<IoTDevice[]> => {
             const devices: IoTDevice[] = [];
             const depts = Object.values(Department);
             const types = Object.values(DeviceType);
-            for(let i=0; i<12; i++) {
+            for (let i = 0; i < 12; i++) {
                 const dept = depts[Math.floor(Math.random() * depts.length)];
                 const type = types[Math.floor(Math.random() * types.length)];
                 devices.push({

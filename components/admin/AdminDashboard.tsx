@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { DepartmentDTO } from '../../types';
-import { Shield, Plus, Trash2, Edit2, Save, X, Building2, BedDouble } from 'lucide-react';
+import { Shield, Plus, Trash2, Edit2, Save, X, Building2, BedDouble, AlertTriangle, AlertOctagon } from 'lucide-react';
 
 interface AdminDashboardProps {
     departments: DepartmentDTO[];
@@ -22,6 +22,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [newDept, setNewDept] = useState({ code: '', name: '', capacity: 16 });
     const [editingDeptCode, setEditingDeptCode] = useState<string | null>(null);
     const [editCapacity, setEditCapacity] = useState(0);
+    const [deleteConfirmDept, setDeleteConfirmDept] = useState<DepartmentDTO | null>(null);
 
     const handleAddSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,8 +51,69 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
+    const handleDeleteClick = (dept: DepartmentDTO) => {
+        setDeleteConfirmDept(dept);
+    };
+
+    const confirmDelete = () => {
+        if (deleteConfirmDept) {
+            onDeleteDepartment(deleteConfirmDept.code);
+            setDeleteConfirmDept(null);
+        }
+    };
+
     return (
-        <div className="flex-1 p-8 bg-med-bg text-gray-200 overflow-y-auto">
+        <div className="flex-1 p-8 bg-med-bg text-gray-200 overflow-y-auto relative">
+
+            {/* Improved Delete Confirmation Modal */}
+            {deleteConfirmDept && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in zoom-in-95 duration-200" onClick={() => setDeleteConfirmDept(null)}>
+                    <div
+                        className="bg-[#1a1d24] border border-red-900/50 w-full max-w-md rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.3)] overflow-hidden transform transition-all"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Decorative Header Gradient */}
+                        <div className="h-2 bg-gradient-to-r from-red-600 to-orange-600"></div>
+
+                        <div className="p-8 flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full bg-red-900/20 border border-red-900/50 flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(220,38,38,0.2)]">
+                                <AlertOctagon size={36} className="text-red-500 animate-pulse" />
+                            </div>
+
+                            <h3 className="text-2xl font-bold text-white mb-2">删除科室确认</h3>
+
+                            <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                                您即将永久删除 <br />
+                                <span className="text-white font-bold text-lg bg-red-900/30 px-2 py-0.5 rounded border border-red-900/50 mt-2 inline-block">
+                                    {deleteConfirmDept.name} ({deleteConfirmDept.code})
+                                </span>
+                            </p>
+
+                            <div className="bg-red-950/30 border border-red-900/30 p-3 rounded-lg text-xs text-red-300 w-full mb-6 flex items-start gap-2 text-left">
+                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                <span>警告：此操作不可逆。删除科室将同步清除该科室下的所有床位配置、设备绑定关系及历史报警记录。请确保该科室已无在床患者。</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 w-full">
+                                <button
+                                    onClick={() => setDeleteConfirmDept(null)}
+                                    className="px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold transition border border-gray-700 hover:border-gray-600"
+                                >
+                                    取消操作
+                                </button>
+                                <button
+                                    onClick={confirmDelete}
+                                    className="px-4 py-3 rounded-xl bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold transition shadow-lg shadow-red-900/30 flex items-center justify-center gap-2 group"
+                                >
+                                    <Trash2 size={18} className="group-hover:rotate-12 transition-transform" />
+                                    确认删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h2 className="text-2xl font-bold flex items-center gap-3">
@@ -166,7 +228,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             <Edit2 size={16} />
                                         </button>
                                         <button
-                                            onClick={() => { if (confirm(`确认删除 ${dept.name} ?\n这将会清除该科室所有配置。`)) onDeleteDepartment(dept.code); }}
+                                            onClick={() => handleDeleteClick(dept)}
                                             className="p-2 hover:bg-red-900/30 rounded text-gray-400 hover:text-red-400 transition"
                                             title="删除科室"
                                         >

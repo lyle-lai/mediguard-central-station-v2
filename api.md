@@ -1,3 +1,4 @@
+
 # MediGuard CMS - API 接口文档 v3.5 (Complete)
 
 本文档基于前端代码 (`services/apiService.ts`, `types.ts`) 及最新重构逻辑整理，定义了前端与后端交互的完整契约。
@@ -48,9 +49,9 @@
       "name": "系统管理员",
       "role": "ADMIN",
       "departments": [
-        { "id": "d1", "code": "ICU", "name": "重症医学科" },
-        { "id": "d2", "code": "OR", "name": "手术室" },
-        { "id": "d3", "code": "ER", "name": "急诊科" }
+        { "id": "d1", "code": "ICU", "name": "重症医学科", "capacity": 20 },
+        { "id": "d2", "code": "OR", "name": "手术室", "capacity": 8 },
+        { "id": "d3", "code": "ER", "name": "急诊科", "capacity": 12 }
       ]
     }
   }
@@ -232,7 +233,7 @@
      "waveforms": [
         { "id": "co2", "label": "CO2", "visible": true, "color": "#ffffff", "order": 1 },
         { "id": "ecg", "label": "ECG", "visible": true, "color": "#00ff41", "order": 2 },
-        { "id": "pleth", "label": "Pleth", "visible": true, "color": "#00d0ff", "order": 3 }
+        { "id": "pleth", "label": "血氧 (Pleth", "visible": true, "color": "#00d0ff", "order": 3 }
      ],
      "parameters": [
         { "id": "etco2", "label": "EtCO2", "unit": "mmHg", "visible": true, "order": 1 },
@@ -646,4 +647,55 @@
     "activeAlarms": []
   }
 ]
+```
+
+---
+
+## 8. 科室管理 (Admin)
+
+### 8.1 获取所有科室列表
+**说明**: 获取系统定义的科室列表（Admin视图）。
+**URL**: `/admin/departments`
+**Method**: `GET`
+
+**Response Body**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+      { "id": "d1", "code": "ICU", "name": "重症医学科", "capacity": 20 },
+      { "id": "d2", "code": "OR", "name": "手术室", "capacity": 8 },
+      { "id": "d_new_01", "code": "CCU", "name": "心内监护室", "capacity": 16 }
+  ]
+}
+```
+
+### 8.2 新增科室
+**说明**: 创建一个新的监护科室，并初始化默认配置。
+**URL**: `/admin/departments`
+**Method**: `POST`
+
+**Request Body**:
+```json
+{
+  "code": "CCU",
+  "name": "心内监护室",
+  "capacity": 16
+}
+```
+
+**Response Body**:
+```json
+{ "code": 200, "message": "success", "data": { "id": "d_new_123", "code": "CCU" } }
+```
+
+### 8.3 删除科室
+**说明**: 移除一个科室及其所有配置。
+**URL**: `/admin/departments/{code}`
+**Method**: `DELETE`
+
+**Response Body**:
+```json
+{ "code": 200, "message": "success", "data": null }
 ```
