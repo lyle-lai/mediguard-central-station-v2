@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PatientData, AlarmRecord, SystemSettings, VitalStatus, AlarmCategory, DeviceRealtimeDataDTO, User, DepartmentCode } from '../types';
 import { generateInitialData, simulateNextTick, generateInitialAlarms, captureAlarmSnapshot } from '../services/iotSimulator';
 import { fetchAllPatientsApi, fetchAlarmHistoryApi, fetchGlobalConfig } from '../services/apiService';
@@ -6,8 +6,8 @@ import { connectWebSocket, disconnectWebSocket } from '../services/websocketServ
 import { MAX_WAVEFORM_POINTS, DEFAULT_DEVICE_CONFIGS, UPDATE_INTERVAL_MS } from '../constants';
 
 export const useRealtimeData = (
-    settings: SystemSettings, 
-    currentUser: User | null, 
+    settings: SystemSettings,
+    currentUser: User | null,
     setSettings: React.Dispatch<React.SetStateAction<SystemSettings>>
 ) => {
     const [patients, setPatients] = useState<PatientData[]>([]);
@@ -38,30 +38,30 @@ export const useRealtimeData = (
     // 2. Simulation Loop (Demo Mode)
     useEffect(() => {
         if (!settings.isDemoMode || settings.simulationSpeed === 0 || !currentUser) return;
-        
+
         const intervalId = setInterval(() => {
             setPatients(prev => simulateNextTick(
-                prev, 
-                settings.simulationSpeed, 
+                prev,
+                settings.simulationSpeed,
                 settings.deviceConfigs, // Passing map
                 settings.alarmThresholds // Passing map
             ));
         }, UPDATE_INTERVAL_MS);
-        
+
         return () => clearInterval(intervalId);
     }, [settings.isDemoMode, settings.simulationSpeed, settings.deviceConfigs, settings.alarmThresholds, currentUser]);
 
     // 3. Alarm Detection Logic (Common for both modes to update History)
     useEffect(() => {
         if (!settings.isDemoMode || patients.length === 0) return;
-        
+
         setAlarmHistory(prevHist => {
             const now = Date.now();
             const newAlarms: AlarmRecord[] = [];
-            
+
             patients.forEach(p => {
                 if (p.activeAlarm && (p.status === VitalStatus.CRITICAL || p.status === VitalStatus.WARNING)) {
-                    const isDuplicate = prevHist.some(h => 
+                    const isDuplicate = prevHist.some(h =>
                         h.patientId === p.id &&
                         h.category === p.activeAlarm?.category &&
                         h.message === p.activeAlarm?.message &&
@@ -88,7 +88,7 @@ export const useRealtimeData = (
             });
 
             if (newAlarms.length > 0) {
-                return [...newAlarms, ...prevHist].slice(0, 100); 
+                return [...newAlarms, ...prevHist].slice(0, 100);
             }
             return prevHist;
         });
@@ -100,8 +100,8 @@ export const useRealtimeData = (
 
         const loadRealData = async () => {
             try {
-                const currentDeptCode = (currentUser.departments && currentUser.departments.length > 0) 
-                    ? currentUser.departments[0].code 
+                const currentDeptCode = (currentUser.departments && currentUser.departments.length > 0)
+                    ? currentUser.departments[0].code
                     : DepartmentCode.ICU;
 
                 const [realPatients, realAlarms, globalConfig] = await Promise.all([
@@ -109,20 +109,20 @@ export const useRealtimeData = (
                     fetchAlarmHistoryApi(currentDeptCode),
                     fetchGlobalConfig(currentDeptCode)
                 ]);
-                
+
                 const configToUse = globalConfig.deviceConfigs || settings.deviceConfigs;
-                
+
                 setSettings(prev => ({
                     ...prev,
                     deptCapacity: globalConfig.deptCapacity || prev.deptCapacity,
                     deviceConfigs: configToUse,
                 }));
-                
+
                 const initializedPatients = realPatients.map(p => {
                     // Use department-specific config for initial buffer setup
                     const deptConfig = configToUse[p.department] || DEFAULT_DEVICE_CONFIGS[p.department];
                     const devConfig = deptConfig[p.deviceType];
-                    
+
                     return {
                         ...p,
                         waveforms: p.waveforms.length > 0 ? p.waveforms : (devConfig?.waveforms || []).map(c => ({
@@ -154,16 +154,24 @@ export const useRealtimeData = (
             setPatients(prev => {
                 if (prev.length === 0) return prev;
                 const updateMap = new Map(dtos.map(u => [u.deviceId, u]));
-                
+
                 return prev.map(p => {
-                    const u = updateMap.get(p.deviceId); 
+                    const u = updateMap.get(p.deviceId);
                     if (!u) return p;
-                    
+
                     const newWaves = p.waveforms.map(wave => {
                         if (u.waveforms && u.waveforms[wave.id]) {
                             const points = u.waveforms[wave.id];
-                            const newData = wave.data.slice(points.length); 
-                            newData.push(...points); 
+                            // Safety: Ensure points is an array
+                            if (!Array.isArray(points)) return wave;
+
+                            const newData = wave.data.slice(points.length);
+                            newData.push(...points);
+
+                            // Safety: Hard limit on length to prevent OOM
+                            if (newData.length > MAX_WAVEFORM_POINTS) {
+                                return { ...wave, data: newData.slice(newData.length - MAX_WAVEFORM_POINTS) };
+                            }
                             return { ...wave, data: newData };
                         }
                         return wave;
@@ -181,9 +189,9 @@ export const useRealtimeData = (
 
                     let activeAlarm = undefined;
                     let newStatus = VitalStatus.NORMAL;
-                    
+
                     if (u.activeAlarms && u.activeAlarms.length > 0) {
-                        const alarm = u.activeAlarms[0]; 
+                        const alarm = u.activeAlarms[0];
                         newStatus = alarm.level;
                         activeAlarm = {
                             message: alarm.msg,
