@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { PatientData, AppView, SystemSettings, VitalStatus, DepartmentCode, User, Department, UserRole, DeviceDisplayConfig, AlarmThresholdItem, DepartmentDTO } from './types';
+import { PatientData, AppView, SystemSettings, VitalStatus, DepartmentCode, User, Department, UserRole, DeviceDisplayConfig, AlarmThresholdItem, DepartmentDTO, DeviceType, DeviceTypeDesc, WaveformConfig, ParameterConfig, DepartmentPreferences } from './types';
 import { DEFAULT_DEVICE_CONFIGS, DEFAULT_DEPT_CAPACITY, DEFAULT_ALARM_THRESHOLDS, DEFAULT_BED_LABELS } from './constants';
-import { admitPatientApi, dischargePatientApi, updatePatientConfigApi, updateDepartmentCapacity, updateDepartmentDeviceConfig, updateDepartmentAlarms, fetchGlobalConfig, fetchAllPatientsApi, createDepartmentApi, deleteDepartmentApi, fetchDepartmentsApi } from './services/apiService';
+import { admitPatientApi, dischargePatientApi, updatePatientConfigApi, updateDepartmentCapacity, updateDeviceWaveformsApi, updateDeviceParametersApi, updateDepartmentAlarms, fetchGlobalConfig, fetchAllPatientsApi, createDepartmentApi, deleteDepartmentApi, fetchDepartmentsApi, updateDepartmentPreferencesApi } from './services/apiService';
 import { forceTriggerAlarm } from './services/iotSimulator';
 import { useRealtimeData } from './hooks/useRealtimeData';
 
@@ -23,7 +23,36 @@ import Header from './components/layout/Header';
 import { Server, Wifi, AlertTriangle } from 'lucide-react';
 
 const App: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    // --- Session Persistence Logic ---
+    const [currentUser, setCurrentUser] = useState<User | null>(() => {
+        try {
+            const savedUser = localStorage.getItem('mediguard_user');
+            return savedUser ? JSON.parse(savedUser) : null;
+        } catch (e) { return null; }
+    });
+
+    const [settings, setSettings] = useState<SystemSettings>(() => {
+        const defaults: SystemSettings = {
+            isDemoMode: true,
+            layoutMode: 'standard',
+            filterType: 'ALL',
+            audioEnabled: false,
+            simulationSpeed: 2,
+            deviceConfigs: DEFAULT_DEVICE_CONFIGS,
+            deptCapacity: DEFAULT_DEPT_CAPACITY,
+            alarmThresholds: DEFAULT_ALARM_THRESHOLDS,
+            bedLabels: DEFAULT_BED_LABELS,
+            nightMode: false
+        };
+        try {
+            const savedSettings = localStorage.getItem('mediguard_settings');
+            if (savedSettings) {
+                return { ...defaults, ...JSON.parse(savedSettings) };
+            }
+        } catch (e) { }
+        return defaults;
+    });
+
     const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [selectedDepartment, setSelectedDepartment] = useState<Department>(DepartmentCode.ICU);
@@ -41,18 +70,21 @@ const App: React.FC = () => {
     // For Admin Dashboard
     const [departmentList, setDepartmentList] = useState<DepartmentDTO[]>([]);
 
-    const [settings, setSettings] = useState<SystemSettings>({
-        isDemoMode: true,
-        layoutMode: 'standard',
-        filterType: 'ALL',
-        audioEnabled: false,
-        simulationSpeed: 2,
-        deviceConfigs: DEFAULT_DEVICE_CONFIGS,
-        deptCapacity: DEFAULT_DEPT_CAPACITY,
-        alarmThresholds: DEFAULT_ALARM_THRESHOLDS,
-        bedLabels: DEFAULT_BED_LABELS,
-        nightMode: false
-    });
+    // --- Auto-Save Settings (Local for fallback/demo) ---
+    useEffect(() => {
+        localStorage.setItem('mediguard_settings', JSON.stringify(settings));
+    }, [settings]);
+
+    // Restore selected department from user's list on load
+    useEffect(() => {
+        if (currentUser && currentUser.departments?.length > 0) {
+            // Ensure selected department is valid for this user
+            const hasAccess = currentUser.departments.some(d => d.code === selectedDepartment);
+            if (!hasAccess) {
+                setSelectedDepartment(currentUser.departments[0].code);
+            }
+        }
+    }, [currentUser]);
 
     // --- Custom Hook for Data ---
     const { patients, setPatients, alarmHistory, setAlarmHistory } = useRealtimeData(settings, currentUser, setSettings);
@@ -110,18 +142,25 @@ const App: React.FC = () => {
             fetchGlobalConfig(selectedDepartment).then((config: any) => {
                 console.log("Fetched Dept Config:", config);
                 setSettings(prev => {
-                    // Handle potential flat structure from backend (e.g. { capacity: 20 } instead of { deptCapacity: { ICU: 20 } })
                     const newCapacity = config.deptCapacity?.[selectedDepartment] ?? config.capacity ?? prev.deptCapacity[selectedDepartment];
                     const newBedLabels = config.bedLabels?.[selectedDepartment] ?? config.bedLabels ?? prev.bedLabels[selectedDepartment];
                     const newDeviceConfig = config.deviceConfigs?.[selectedDepartment] ?? config.deviceConfig ?? prev.deviceConfigs[selectedDepartment];
                     const newThresholds = config.alarmThresholds?.[selectedDepartment] ?? config.alarmThresholds ?? prev.alarmThresholds[selectedDepartment];
+
+                    // Apply Department Preferences if they exist
+                    const prefs: Partial<DepartmentPreferences> = config.preferences || {};
 
                     return {
                         ...prev,
                         deptCapacity: { ...prev.deptCapacity, [selectedDepartment]: newCapacity },
                         bedLabels: { ...prev.bedLabels, [selectedDepartment]: newBedLabels },
                         deviceConfigs: { ...prev.deviceConfigs, [selectedDepartment]: newDeviceConfig },
-                        alarmThresholds: { ...prev.alarmThresholds, [selectedDepartment]: newThresholds }
+                        alarmThresholds: { ...prev.alarmThresholds, [selectedDepartment]: newThresholds },
+                        // Apply Prefs (with defaults)
+                        isDemoMode: prefs.isDemoMode ?? prev.isDemoMode,
+                        simulationSpeed: prefs.simulationSpeed ?? prev.simulationSpeed,
+                        nightMode: prefs.nightMode ?? prev.nightMode,
+                        audioEnabled: prefs.audioEnabled ?? prev.audioEnabled
                     };
                 });
             }).catch(e => console.error("Failed to fetch dept config", e));
@@ -129,20 +168,32 @@ const App: React.FC = () => {
     }, [selectedDepartment, settings.isDemoMode, currentUser]);
 
     // --- Handlers ---
-    const handleLogin = (user: User) => {
+    const handleLogin = (user: User, isDemo: boolean) => {
         // Validate user has at least one department
         if (!user.departments || user.departments.length === 0) {
             addToast('登录失败：该账号未分配科室，请联系管理员', 'error');
             return;
         }
 
+        // Persist User Session
+        localStorage.setItem('mediguard_user', JSON.stringify(user));
         setCurrentUser(user);
+
+        // Sync Settings with Login Mode
+        setSettings(prev => ({ ...prev, isDemoMode: isDemo }));
+
         const defaultDept = user.departments[0].code;
         setSelectedDepartment(defaultDept);
         addToast(`欢迎回来, ${user.name}`, 'success');
     };
 
-    const handleLogout = () => { setCurrentUser(null); setIsBigScreen(false); setCurrentView(AppView.DASHBOARD); };
+    const handleLogout = () => {
+        localStorage.removeItem('mediguard_user');
+        localStorage.removeItem('token');
+        setCurrentUser(null);
+        setIsBigScreen(false);
+        setCurrentView(AppView.DASHBOARD);
+    };
 
     const handleTriggerAlarm = () => {
         if (!settings.isDemoMode) { alert("请先开启演示模式 (Demo Mode)"); return; }
@@ -159,6 +210,40 @@ const App: React.FC = () => {
     };
 
     // --- Granular Update Handlers ---
+
+    const handleSavePreferences = async (newPrefs: Partial<DepartmentPreferences>) => {
+        // Optimistic Update
+        setSettings(prev => ({ ...prev, ...newPrefs }));
+
+        // Construct full object for API
+        const fullPrefs: DepartmentPreferences = {
+            isDemoMode: newPrefs.isDemoMode ?? settings.isDemoMode,
+            simulationSpeed: newPrefs.simulationSpeed ?? settings.simulationSpeed,
+            nightMode: newPrefs.nightMode ?? settings.nightMode,
+            audioEnabled: newPrefs.audioEnabled ?? settings.audioEnabled
+        };
+
+        // Always try to save preference to backend if we are logged in, 
+        // regardless of whether we are currently in demo mode or switching to it.
+        // This ensures the backend remembers the "Demo Mode" state when we reload.
+        if (currentUser) {
+            try {
+                await updateDepartmentPreferencesApi(selectedDepartment, fullPrefs);
+                addToast('科室偏好已保存', 'success');
+            } catch (e) {
+                console.error("Failed to save prefs to backend (likely offline or demo user)", e);
+                // We don't show an error toast here if it's just a demo user connection error to avoid UX noise,
+                // but we logged it.
+            }
+        } else {
+            // Fallback for purely local usage without login context (rare)
+            addToast('科室偏好已更新', 'success');
+        }
+    };
+
+    const handleToggleAudio = () => {
+        handleSavePreferences({ audioEnabled: !settings.audioEnabled });
+    };
 
     const handleSaveCapacity = async (newCapacity: number, newBedLabels: Record<string, string>) => {
         // Optimistic
@@ -180,22 +265,61 @@ const App: React.FC = () => {
         }
     };
 
-    const handleSaveDeviceConfig = async (newConfig: DeviceDisplayConfig) => {
-        // Optimistic
+    // Granular Update: Only update waveforms
+    const handleSaveDeviceWaveforms = async (deviceType: DeviceType, waveforms: WaveformConfig[]) => {
+        // Optimistic Update
         setSettings(prev => ({
             ...prev,
-            deviceConfigs: { ...prev.deviceConfigs, [selectedDepartment]: newConfig }
+            deviceConfigs: {
+                ...prev.deviceConfigs,
+                [selectedDepartment]: {
+                    ...prev.deviceConfigs[selectedDepartment],
+                    [deviceType]: {
+                        ...prev.deviceConfigs[selectedDepartment][deviceType],
+                        waveforms: waveforms
+                    }
+                }
+            }
         }));
 
         if (!settings.isDemoMode) {
             try {
-                await updateDepartmentDeviceConfig(selectedDepartment, newConfig);
-                addToast('设备显示模板已同步', 'success');
+                await updateDeviceWaveformsApi(selectedDepartment, deviceType, waveforms);
+                addToast(`${DeviceTypeDesc[deviceType]} 波形配置已同步`, 'success');
             } catch (e) {
-                addToast('保存失败', 'error');
+                addToast(`${DeviceTypeDesc[deviceType]} 波形保存失败`, 'error');
             }
         } else {
-            addToast('设备模板已更新 (演示)', 'success');
+            addToast(`${DeviceTypeDesc[deviceType]} 波形配置已更新 (演示)`, 'success');
+        }
+    };
+
+    // Granular Update: Only update parameters
+    const handleSaveDeviceParameters = async (deviceType: DeviceType, parameters: ParameterConfig[]) => {
+        // Optimistic Update
+        setSettings(prev => ({
+            ...prev,
+            deviceConfigs: {
+                ...prev.deviceConfigs,
+                [selectedDepartment]: {
+                    ...prev.deviceConfigs[selectedDepartment],
+                    [deviceType]: {
+                        ...prev.deviceConfigs[selectedDepartment][deviceType],
+                        parameters: parameters
+                    }
+                }
+            }
+        }));
+
+        if (!settings.isDemoMode) {
+            try {
+                await updateDeviceParametersApi(selectedDepartment, deviceType, parameters);
+                addToast(`${DeviceTypeDesc[deviceType]} 参数配置已同步`, 'success');
+            } catch (e) {
+                addToast(`${DeviceTypeDesc[deviceType]} 参数保存失败`, 'error');
+            }
+        } else {
+            addToast(`${DeviceTypeDesc[deviceType]} 参数配置已更新 (演示)`, 'success');
         }
     };
 
@@ -219,7 +343,7 @@ const App: React.FC = () => {
     };
 
     const handleLocalSettingsUpdate = (newSettings: SystemSettings) => {
-        setSettings(newSettings); // For simple local toggles like DemoMode, Audio, NightMode
+        setSettings(newSettings);
     };
 
     // --- Admin Dashboard Handlers ---
@@ -227,8 +351,7 @@ const App: React.FC = () => {
     const handleAddDepartment = async (code: string, name: string, capacity: number) => {
         const safeCode = code.trim().toUpperCase();
 
-        // 1. Optimistic Update (Immediate Feedback)
-        // Store full capacity here to prevent "0" flash in UI
+        // 1. Optimistic Update
         const optimisticDept: DepartmentDTO = { id: safeCode, code: safeCode, name, capacity };
 
         setDepartmentList(prev => {
@@ -236,7 +359,7 @@ const App: React.FC = () => {
             return [...prev, optimisticDept];
         });
 
-        // Initialize local settings map for the new department to avoid crashes
+        // Initialize local settings
         setSettings(prev => ({
             ...prev,
             deptCapacity: { ...prev.deptCapacity, [safeCode]: capacity },
@@ -253,16 +376,13 @@ const App: React.FC = () => {
                 await createDepartmentApi(safeCode, name, capacity);
 
                 // 3. Force Capacity Update API
-                // This ensures that even if createDepartmentApi doesn't fully persist capacity config, this call will.
                 await updateDepartmentCapacity(safeCode, capacity, {});
 
-                // 4. RE-FETCH SOURCE OF TRUTH
-                // This guarantees the frontend list is in sync with backend, fixing the 0 capacity issue.
+                // 4. Re-fetch Authoritative List
                 const freshList = await fetchDepartmentsApi();
                 setDepartmentList(freshList);
 
                 // 5. Sync Settings Map
-                // Ensure the settings map (which powers dashboard grid) is also in sync with fresh data
                 setSettings(prev => {
                     const updatedCaps = { ...prev.deptCapacity };
                     freshList.forEach(d => {
@@ -275,7 +395,6 @@ const App: React.FC = () => {
             } catch (e) {
                 console.error(e);
                 addToast('创建科室失败，请检查网络', 'error');
-                // Rollback optimistic update if failed
                 setDepartmentList(prev => prev.filter(d => d.code !== safeCode));
             }
         }
@@ -300,7 +419,6 @@ const App: React.FC = () => {
     };
 
     const handleUpdateAdminCapacity = async (code: string, capacity: number) => {
-        // Re-use existing handler logic but for arbitrary code
         if (settings.isDemoMode) {
             setSettings(prev => ({
                 ...prev,
@@ -315,7 +433,6 @@ const App: React.FC = () => {
                 addToast('更新失败', 'error');
             }
         }
-        // Sync local list
         setDepartmentList(prev => prev.map(d => d.code === code ? { ...d, capacity } : d));
     };
 
@@ -449,7 +566,31 @@ const App: React.FC = () => {
                 <Sidebar currentUser={currentUser} currentView={currentView} setCurrentView={setCurrentView} selectedDepartment={selectedDepartment} setSelectedDepartment={setSelectedDepartment} isDeptMenuOpen={isDeptMenuOpen} setIsDeptMenuOpen={setIsDeptMenuOpen} handleLogout={handleLogout} settings={settings} activeAlarmsCount={activeAlarmsCount} />
             )}
             <main className={`flex-1 flex flex-col min-w-0 relative z-0 transition-all duration-300`}>
-                <Header isBigScreen={isBigScreen} settings={settings} setSettings={setSettings} selectedDepartment={selectedDepartment} setSelectedDepartment={setSelectedDepartment} isDeptMenuOpen={isDeptMenuOpen} setIsDeptMenuOpen={setIsDeptMenuOpen} canSwitchDepartment={canSwitchDepartment} currentUser={currentUser} currentView={currentView} setCurrentView={setCurrentView} isFilterMenuOpen={isFilterMenuOpen} setIsFilterMenuOpen={setIsFilterMenuOpen} activeAlarm={activeAlarm ? { ...activeAlarm.activeAlarm!, bedNumber: activeAlarm.bedNumber, id: activeAlarm.id } : undefined} activeAlarmsCount={activeAlarmsCount} handleAcknowledgeAlarm={handleAcknowledgeAlarm} sortByOccupancy={sortByOccupancy} setSortByOccupancy={setSortByOccupancy} currentTime={currentTime} setIsBigScreen={setIsBigScreen} userRoleMap={userRoleMap} patients={patients} />
+                <Header
+                    isBigScreen={isBigScreen}
+                    settings={settings}
+                    setSettings={setSettings}
+                    selectedDepartment={selectedDepartment}
+                    setSelectedDepartment={setSelectedDepartment}
+                    isDeptMenuOpen={isDeptMenuOpen}
+                    setIsDeptMenuOpen={setIsDeptMenuOpen}
+                    canSwitchDepartment={canSwitchDepartment}
+                    currentUser={currentUser}
+                    currentView={currentView}
+                    setCurrentView={setCurrentView}
+                    isFilterMenuOpen={isFilterMenuOpen}
+                    setIsFilterMenuOpen={setIsFilterMenuOpen}
+                    activeAlarm={activeAlarm ? { ...activeAlarm.activeAlarm!, bedNumber: activeAlarm.bedNumber, id: activeAlarm.id } : undefined}
+                    activeAlarmsCount={activeAlarmsCount}
+                    handleAcknowledgeAlarm={handleAcknowledgeAlarm}
+                    sortByOccupancy={sortByOccupancy}
+                    setSortByOccupancy={setSortByOccupancy}
+                    currentTime={currentTime}
+                    setIsBigScreen={setIsBigScreen}
+                    userRoleMap={userRoleMap}
+                    patients={patients}
+                    onToggleAudio={handleToggleAudio}
+                />
 
                 <div className={`flex-1 flex flex-col relative ${isBigScreen ? 'bg-black overflow-hidden' : 'overflow-hidden'}`}>
                     {currentView === AppView.DASHBOARD && (
@@ -496,8 +637,11 @@ const App: React.FC = () => {
                                     settings={settings}
                                     onUpdate={handleLocalSettingsUpdate}
                                     onSaveCapacity={handleSaveCapacity}
-                                    onSaveDeviceConfig={handleSaveDeviceConfig}
+                                    onSaveDeviceConfig={handleSaveDeviceWaveforms}
+                                    onSaveWaveforms={handleSaveDeviceWaveforms}
+                                    onSaveParameters={handleSaveDeviceParameters}
                                     onSaveAlarms={handleSaveAlarmThresholds}
+                                    onSavePreferences={handleSavePreferences} // Pass the handler for department preferences
                                     onTriggerAlarm={handleTriggerAlarm}
                                     currentUser={currentUser}
                                     currentDepartment={selectedDepartment}

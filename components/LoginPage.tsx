@@ -6,7 +6,7 @@ import { User } from '../types';
 import { loginApi } from '../services/apiService';
 
 interface LoginPageProps {
-  onLogin: (user: User) => void;
+  onLogin: (user: User, isDemo: boolean) => void;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
@@ -26,7 +26,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       setTimeout(() => {
         const user = MOCK_USERS.find(u => u.username === username && u.password === password);
         if (user) {
-          onLogin(user);
+          onLogin(user, true);
         } else {
           setError('用户名或密码错误 (演示模式)');
         }
@@ -47,7 +47,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         if (response.token) {
           localStorage.setItem('token', response.token);
         }
-        onLogin(response.user);
+        onLogin(response.user, false);
       } catch (err: any) {
         console.error("Login failed", err);
         setError(err.message || '登录失败，请检查网络或账号');

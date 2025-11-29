@@ -15,7 +15,10 @@ const getPrevData = (p: PatientData, id: string): number[] => {
 
 // Config passed here is for a SINGLE department
 const updateDeviceWaveforms = (p: PatientData, deviceType: DeviceType, config: DeviceDisplayConfig, tOffset: number): Waveform[] => {
-    const deviceConfig = config[deviceType]?.waveforms || DEFAULT_DEVICE_CONFIGS[p.department][deviceType].waveforms;
+    // ROBUST: Check if config exists, if not fallback to default ICU config
+    const safeConfig = config || DEFAULT_DEVICE_CONFIGS[DepartmentCode.ICU];
+    const deviceConfig = safeConfig[deviceType]?.waveforms || DEFAULT_DEVICE_CONFIGS[DepartmentCode.ICU][deviceType].waveforms;
+
     const configIds = deviceConfig.map(c => c.id);
 
     const isLeadOff = p.activeAlarm?.category === AlarmCategory.TECHNICAL && p.activeAlarm.message.includes('脱落');
@@ -71,7 +74,9 @@ const updateDeviceParameters = (p: PatientData, deviceType: DeviceType, config: 
         }
     }
 
-    const deviceParamsConfig = config[deviceType]?.parameters || DEFAULT_DEVICE_CONFIGS[p.department][deviceType].parameters;
+    // ROBUST: Check if config exists, if not fallback to default ICU config to prevent crash
+    const safeConfig = config || DEFAULT_DEVICE_CONFIGS[DepartmentCode.ICU];
+    const deviceParamsConfig = safeConfig[deviceType]?.parameters || DEFAULT_DEVICE_CONFIGS[DepartmentCode.ICU][deviceType].parameters;
 
     return deviceParamsConfig.map(conf => {
         let val: string | number = '--';
@@ -168,7 +173,7 @@ const generateRandomName = () => {
 
 export const generateInitialData = (): PatientData[] => {
     const patients: PatientData[] = [];
-    Object.values(Department).forEach(dept => {
+    Object.values(DepartmentCode).forEach(dept => {
         const capacity = DEFAULT_DEPT_CAPACITY[dept];
 
         const prefix = 'Bed';
@@ -207,8 +212,8 @@ const checkAlarmRules = (params: Parameter[], thresholds: AlarmThresholdItem[], 
     let highestPriorityAlarm: { message: string, category: AlarmCategory, priority: AlarmPriority } | undefined = undefined;
 
     const isHigherPriority = (a: AlarmPriority, b: AlarmPriority) => {
-        if (a === AlarmPriority.HIGH) return true;
-        if (a === AlarmPriority.MED && b === AlarmPriority.LOW) return true;
+        if (a === AlarmPriority.CRITICAL) return true;
+        if (a === AlarmPriority.WARNING && b === AlarmPriority.NORMAL) return true;
         return false;
     };
 
@@ -258,16 +263,25 @@ export const simulateNextTick = (
     currentPatients: PatientData[],
     speed: number,
     // Update: Map instead of Single Config
-    deviceConfigsMap?: Record<DepartmentCode, DeviceDisplayConfig>,
+    deviceConfigsMap?: Record<string, DeviceDisplayConfig>,
     // Update: Map instead of Single Array
-    alarmThresholdsMap?: Record<DepartmentCode, AlarmThresholdItem[]>
+    alarmThresholdsMap?: Record<string, AlarmThresholdItem[]>
 ): PatientData[] => {
     timeStep += speed;
 
     return currentPatients.map((p, idx) => {
-        // Lookup config for this patient's department
-        const configToUse = deviceConfigsMap ? deviceConfigsMap[p.department] : DEFAULT_DEVICE_CONFIGS[p.department];
-        const thresholdsToUse = alarmThresholdsMap ? alarmThresholdsMap[p.department] : DEFAULT_ALARM_THRESHOLDS[p.department];
+        // CRITICAL FIX: Robust Lookup.
+        // If deviceConfigsMap is undefined or the key for this department is missing, fallback to DEFAULT/ICU config.
+        // This prevents "Cannot read properties of undefined (reading 'MONITOR')" error.
+        let configToUse = deviceConfigsMap ? deviceConfigsMap[p.department] : undefined;
+        if (!configToUse) {
+            configToUse = DEFAULT_DEVICE_CONFIGS[p.department as DepartmentCode] || DEFAULT_DEVICE_CONFIGS[DepartmentCode.ICU];
+        }
+
+        let thresholdsToUse = alarmThresholdsMap ? alarmThresholdsMap[p.department] : undefined;
+        if (!thresholdsToUse) {
+            thresholdsToUse = DEFAULT_ALARM_THRESHOLDS[p.department as DepartmentCode] || DEFAULT_ALARM_THRESHOLDS[DepartmentCode.ICU];
+        }
 
         const isStandby = p.status === VitalStatus.STANDBY;
 
@@ -316,7 +330,7 @@ export const simulateNextTick = (
 
             if (result.activeAlarm) {
                 combinedParams = combinedParams.map(cp => ({ ...cp, isAlarm: result.triggeredParams.includes(cp.id) }));
-                status = result.activeAlarm.priority === AlarmPriority.HIGH ? VitalStatus.CRITICAL : VitalStatus.WARNING;
+                status = result.activeAlarm.priority === AlarmPriority.CRITICAL ? VitalStatus.CRITICAL : VitalStatus.WARNING;
                 const isSameMsg = activeAlarm?.message === result.activeAlarm.message;
                 activeAlarm = {
                     message: result.activeAlarm.message,
@@ -330,7 +344,7 @@ export const simulateNextTick = (
                     status = VitalStatus.WARNING;
                     activeAlarm = {
                         message: 'SpO2 探头脱落', category: AlarmCategory.TECHNICAL, timestamp: new Date(),
-                        isAcknowledged: false, priority: AlarmPriority.MED
+                        isAcknowledged: false, priority: AlarmPriority.WARNING
                     };
                 } else if (!isForcedAlarm) {
                     activeAlarm = undefined;
@@ -384,7 +398,7 @@ export const fetchAvailableIoTDevices = async (): Promise<IoTDevice[]> => {
     return new Promise((resolve) => {
         setTimeout(() => {
             const devices: IoTDevice[] = [];
-            const depts = Object.values(Department);
+            const depts = Object.values(DepartmentCode);
             const types = Object.values(DeviceType);
             for (let i = 0; i < 12; i++) {
                 const dept = depts[Math.floor(Math.random() * depts.length)];

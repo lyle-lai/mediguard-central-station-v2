@@ -190,60 +190,22 @@
 { "code": 200, "message": "success", "data": null }
 ```
 
-### 3.4 更新设备显示模板
-**说明**: 配置该科室下各类设备的默认波形和参数显示顺序/颜色。
-**URL**: `/departments/{departmentCode}/device-configs`
+### 3.4 更新设备波形配置
+**说明**: 更新指定科室下某类设备的波形显示配置（颜色、顺序、可见性）。
+**URL**: `/departments/{departmentCode}/device-configs/{deviceType}/waveforms`
 **Method**: `PUT`
-**Path Params**: `departmentCode` (例如: `ICU`)
+**Path Params**: 
+* `departmentCode` (例如: `ICU`)
+* `deviceType` (例如: `MONITOR`, `VENTILATOR`)
 
-**Request Body** (`DeviceDisplayConfig`):
+**Request Body** (`WaveformConfig[]`):
 ```json
-{
-  "MONITOR": {
-    "waveforms": [
-       { "id": "ecg", "label": "ECG I", "visible": true, "color": "#00ff41", "order": 1 },
-       { "id": "spo2", "label": "SpO2", "visible": true, "color": "#00d0ff", "order": 2 },
-       { "id": "resp", "label": "Resp", "visible": true, "color": "#ffea00", "order": 3 },
-       { "id": "art", "label": "ART", "visible": false, "color": "#ff3b30", "order": 4 }
-    ],
-    "parameters": [
-       { "id": "hr", "label": "HR", "unit": "bpm", "visible": true, "order": 1 },
-       { "id": "spo2", "label": "SpO2", "unit": "%", "visible": true, "order": 2 },
-       { "id": "nibp", "label": "NIBP", "unit": "mmHg", "visible": true, "order": 3 },
-       { "id": "resp", "label": "RR", "unit": "rpm", "visible": true, "order": 4 },
-       { "id": "temp", "label": "Temp", "unit": "°C", "visible": true, "order": 5 }
-    ]
-  },
-  "VENTILATOR": {
-    "waveforms": [
-       { "id": "paw", "label": "Paw", "visible": true, "color": "#ff9500", "order": 1 },
-       { "id": "flow", "label": "Flow", "visible": true, "color": "#34d399", "order": 2 },
-       { "id": "vol", "label": "Volume", "visible": true, "color": "#00d0ff", "order": 3 }
-    ],
-    "parameters": [
-       { "id": "ppeak", "label": "Ppeak", "unit": "cmH2O", "visible": true, "order": 1 },
-       { "id": "vte", "label": "VTe", "unit": "ml", "visible": true, "order": 2 },
-       { "id": "mv", "label": "MV", "unit": "L/min", "visible": true, "order": 3 },
-       { "id": "fio2", "label": "FiO2", "unit": "%", "visible": true, "order": 4 },
-       { "id": "peep", "label": "PEEP", "unit": "cmH2O", "visible": true, "order": 5 },
-       { "id": "freq", "label": "fTotal", "unit": "bpm", "visible": true, "order": 6 }
-    ]
-  },
-  "ANESTHESIA": {
-     "waveforms": [
-        { "id": "co2", "label": "CO2", "visible": true, "color": "#ffffff", "order": 1 },
-        { "id": "ecg", "label": "ECG", "visible": true, "color": "#00ff41", "order": 2 },
-        { "id": "pleth", "label": "血氧 (Pleth", "visible": true, "color": "#00d0ff", "order": 3 }
-     ],
-     "parameters": [
-        { "id": "etco2", "label": "EtCO2", "unit": "mmHg", "visible": true, "order": 1 },
-        { "id": "spo2", "label": "SpO2", "unit": "%", "visible": true, "order": 2 },
-        { "id": "mac", "label": "MAC", "unit": "", "visible": true, "order": 3 },
-        { "id": "fio2", "label": "FiO2", "unit": "%", "visible": true, "order": 4 },
-        { "id": "hr", "label": "HR", "unit": "bpm", "visible": true, "order": 5 }
-     ]
-  }
-}
+[
+   { "id": "ecg", "label": "ECG I", "visible": true, "color": "#00ff41", "order": 1 },
+   { "id": "spo2", "label": "SpO2", "visible": true, "color": "#00d0ff", "order": 2 },
+   { "id": "resp", "label": "Resp", "visible": true, "color": "#ffea00", "order": 3 },
+   { "id": "art", "label": "ART", "visible": false, "color": "#ff3b30", "order": 4 }
+]
 ```
 
 **Response Body**:
@@ -251,7 +213,31 @@
 { "code": 200, "message": "success", "data": null }
 ```
 
-### 3.5 更新报警阈值策略
+### 3.5 更新设备参数配置
+**说明**: 更新指定科室下某类设备的参数显示配置（单位、顺序、可见性）。
+**URL**: `/departments/{departmentCode}/device-configs/{deviceType}/parameters`
+**Method**: `PUT`
+**Path Params**: 
+* `departmentCode` (例如: `ICU`)
+* `deviceType` (例如: `MONITOR`, `VENTILATOR`)
+
+**Request Body** (`ParameterConfig[]`):
+```json
+[
+   { "id": "hr", "label": "HR", "unit": "bpm", "visible": true, "order": 1 },
+   { "id": "spo2", "label": "SpO2", "unit": "%", "visible": true, "order": 2 },
+   { "id": "nibp", "label": "NIBP", "unit": "mmHg", "visible": true, "order": 3 },
+   { "id": "resp", "label": "RR", "unit": "rpm", "visible": true, "order": 4 },
+   { "id": "temp", "label": "Temp", "unit": "°C", "visible": true, "order": 5 }
+]
+```
+
+**Response Body**:
+```json
+{ "code": 200, "message": "success", "data": null }
+```
+
+### 3.6 更新报警阈值策略
 **说明**: 更新该科室的生理参数报警规则。
 **URL**: `/departments/{departmentCode}/alarm-thresholds`
 **Method**: `PUT`
@@ -266,7 +252,7 @@
     "max": 110,
     "min": 55,
     "delay": 5,
-    "priority": "HIGH",
+    "priority": "CRITICAL",
     "enabled": true
   },
   {
@@ -275,7 +261,7 @@
     "max": 100,
     "min": 92,
     "delay": 10,
-    "priority": "HIGH",
+    "priority": "CRITICAL",
     "enabled": true
   },
   {
@@ -284,7 +270,7 @@
     "max": 30,
     "min": 8,
     "delay": 15,
-    "priority": "MED",
+    "priority": "WARNING",
     "enabled": false
   },
   {
@@ -293,7 +279,7 @@
     "max": 160,
     "min": 90,
     "delay": 5,
-    "priority": "MED",
+    "priority": "WARNING",
     "enabled": true
   },
   {
@@ -302,7 +288,7 @@
     "max": 45,
     "min": 30,
     "delay": 5,
-    "priority": "MED",
+    "priority": "WARNING",
     "enabled": true
   },
   {
@@ -311,7 +297,7 @@
     "max": 40,
     "min": null,
     "delay": 1,
-    "priority": "HIGH",
+    "priority": "CRITICAL",
     "enabled": true
   }
 ]

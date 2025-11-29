@@ -26,6 +26,7 @@ interface HeaderProps {
     setIsBigScreen: (b: boolean) => void;
     userRoleMap: Record<string, string>;
     patients: PatientData[];
+    onToggleAudio: () => void; // New Prop
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -50,7 +51,8 @@ const Header: React.FC<HeaderProps> = ({
     currentTime,
     setIsBigScreen,
     userRoleMap,
-    patients
+    patients,
+    onToggleAudio
 }) => {
 
     const getFilterLabel = (type: DeviceType | 'ALL') => {
@@ -164,7 +166,7 @@ const Header: React.FC<HeaderProps> = ({
                 )}
 
                 <button
-                    onClick={() => setSettings(s => ({ ...s, audioEnabled: !s.audioEnabled }))}
+                    onClick={onToggleAudio}
                     className={`p-2 rounded-full border transition ${settings.audioEnabled ? 'bg-gray-800 text-blue-400 border-gray-700' : 'bg-red-900/20 text-red-400 border-red-800'}`}
                     title={settings.audioEnabled ? "系统静音 (Mute All)" : "开启声音"}
                 >

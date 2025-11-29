@@ -7,13 +7,15 @@ import { Plus, X, ArrowUp, ArrowDown, Trash2, Save, RotateCcw, AlertTriangle } f
 
 interface DeviceConfigTabProps {
     config: DeviceDisplayConfig; // Department-specific config
-    onSave: (newConfig: DeviceDisplayConfig) => void;
+    // Updated callbacks to support separation
+    onSaveWaveforms: (deviceType: DeviceType, waveforms: WaveformConfig[]) => void;
+    onSaveParameters: (deviceType: DeviceType, parameters: ParameterConfig[]) => void;
     activeTab: 'waveforms' | 'parameters';
     editingDevice: DeviceType;
     setEditingDevice: (d: DeviceType) => void;
 }
 
-const DeviceConfigTab: React.FC<DeviceConfigTabProps> = ({ config, onSave, activeTab, editingDevice, setEditingDevice }) => {
+const DeviceConfigTab: React.FC<DeviceConfigTabProps> = ({ config, onSaveWaveforms, onSaveParameters, activeTab, editingDevice, setEditingDevice }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [newItemId, setNewItemId] = useState('');
     const [newItemLabel, setNewItemLabel] = useState('');
@@ -36,7 +38,18 @@ const DeviceConfigTab: React.FC<DeviceConfigTabProps> = ({ config, onSave, activ
 
     const handleSave = () => {
         if (!localDeviceConfigs) return;
-        onSave(localDeviceConfigs);
+
+        // Strict Mode: Only save the configuration for the CURRENTLY selected device and CURRENT active tab.
+        // This prevents overwriting other devices' configs or overwriting parameters when viewing waveforms (and vice-versa).
+
+        const currentDeviceConfig = localDeviceConfigs[editingDevice];
+
+        if (activeTab === 'waveforms') {
+            onSaveWaveforms(editingDevice, currentDeviceConfig.waveforms);
+        } else if (activeTab === 'parameters') {
+            onSaveParameters(editingDevice, currentDeviceConfig.parameters);
+        }
+
         setIsDirty(false);
     };
 
@@ -108,8 +121,6 @@ const DeviceConfigTab: React.FC<DeviceConfigTabProps> = ({ config, onSave, activ
         } else {
             const newItem: ParameterConfig = { id, label: newItemLabel, unit: newItemMeta || '', visible: true, order: newOrder };
             targetConfig.parameters.push(newItem);
-            // Note: Alarm rule creation needs to be handled by the parent if needed, or synced later.
-            // For simplicity here, we just add the param.
         }
 
         setLocalDeviceConfigs(newConfigs);
@@ -220,7 +231,7 @@ const DeviceConfigTab: React.FC<DeviceConfigTabProps> = ({ config, onSave, activ
                             <RotateCcw size={16} /> 重置
                         </button>
                         <button type="button" onClick={handleSave} className="px-6 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition">
-                            <Save size={16} /> 保存配置
+                            <Save size={16} /> 保存当前页
                         </button>
                     </div>
                 </div>

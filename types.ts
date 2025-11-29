@@ -42,9 +42,9 @@ export enum AppView {
 }
 
 export enum AlarmPriority {
-  HIGH = 'HIGH',
-  MED = 'MED',
-  LOW = 'LOW'
+  CRITICAL = 'CRITICAL',
+  WARNING = 'WARNING',
+  NORMAL = 'NORMAL'
 }
 
 // Static Descriptors (Fallback if API dictionary fails)
@@ -218,20 +218,27 @@ export interface AlarmThresholdItem {
 
 export type AlarmRule = AlarmThresholdItem;
 
+export interface DepartmentPreferences {
+  isDemoMode: boolean;
+  simulationSpeed: number;
+  nightMode: boolean;
+  audioEnabled: boolean;
+}
+
 export interface SystemSettings {
+  // Global / Current State
   isDemoMode: boolean;
   layoutMode: 'compact' | 'standard' | 'large';
   audioEnabled: boolean;
   simulationSpeed: number;
   filterType: DeviceTypeCode | 'ALL';
-  // CHANGED: Map Department -> Config
+  nightMode: boolean;
+
+  // Department-Specific Maps
   deviceConfigs: Record<string, DeviceDisplayConfig>;
   deptCapacity: Record<string, number>;
-  // CHANGED: Map Department -> Thresholds
   alarmThresholds: Record<string, AlarmThresholdItem[]>;
-  // NEW: Map Dept -> BedID -> CustomLabel
   bedLabels: Record<string, Record<string, string>>;
-  nightMode: boolean;
 }
 
 export interface IoTDevice {

@@ -1,5 +1,5 @@
 
-import { PatientData, AlarmRecord, IoTDevice, ApiResponse, DepartmentCode, PatientDisplaySettings, SystemSettings, TrendDataPoint, SystemDictionaries, AlarmSnapshot, DeviceDisplayConfig, AlarmThresholdItem, LoginResponse, DepartmentDTO } from '../types';
+import { PatientData, AlarmRecord, IoTDevice, ApiResponse, DepartmentCode, PatientDisplaySettings, SystemSettings, TrendDataPoint, SystemDictionaries, AlarmSnapshot, DeviceDisplayConfig, AlarmThresholdItem, LoginResponse, DepartmentDTO, DeviceType, WaveformConfig, ParameterConfig, DepartmentPreferences } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -39,8 +39,8 @@ export const fetchDictionariesApi = async (): Promise<SystemDictionaries> => {
 
 // Fetch ALL config for a department (Initialization)
 // Now returns a simplified object matching the response of GET /departments/{id}/config
-export const fetchGlobalConfig = async (departmentCode: string): Promise<Partial<SystemSettings>> => {
-  return fetchApi<Partial<SystemSettings>>(`/departments/${departmentCode}/config`);
+export const fetchGlobalConfig = async (departmentCode: string): Promise<any> => {
+  return fetchApi<any>(`/departments/${departmentCode}/config`);
 };
 
 // --- Granular Config Updates ---
@@ -57,12 +57,37 @@ export const updateDepartmentCapacity = async (
   });
 };
 
-// 2. Device Configs (Waveforms/Params)
+// 2. Device Configs (Waveforms/Params) - Split into specific updates
+
+export const updateDeviceWaveformsApi = async (
+  departmentCode: string,
+  deviceType: string,
+  waveforms: WaveformConfig[]
+): Promise<void> => {
+  return fetchApi<void>(`/departments/${departmentCode}/device-configs/${deviceType}/waveforms`, {
+    method: 'PUT',
+    body: JSON.stringify(waveforms),
+  });
+};
+
+export const updateDeviceParametersApi = async (
+  departmentCode: string,
+  deviceType: string,
+  parameters: ParameterConfig[]
+): Promise<void> => {
+  return fetchApi<void>(`/departments/${departmentCode}/device-configs/${deviceType}/parameters`, {
+    method: 'PUT',
+    body: JSON.stringify(parameters),
+  });
+};
+
+// Deprecated: Kept for compatibility if needed, but UI now uses specific methods above
 export const updateDepartmentDeviceConfig = async (
   departmentCode: string,
-  config: DeviceDisplayConfig
+  deviceType: string,
+  config: { waveforms: any[], parameters: any[] }
 ): Promise<void> => {
-  return fetchApi<void>(`/departments/${departmentCode}/device-configs`, {
+  return fetchApi<void>(`/departments/${departmentCode}/device-configs/${deviceType}`, {
     method: 'PUT',
     body: JSON.stringify(config),
   });
@@ -76,6 +101,17 @@ export const updateDepartmentAlarms = async (
   return fetchApi<void>(`/departments/${departmentCode}/alarm-thresholds`, {
     method: 'PUT',
     body: JSON.stringify(thresholds),
+  });
+};
+
+// 4. Department Preferences (Demo, Night Mode, etc.)
+export const updateDepartmentPreferencesApi = async (
+  departmentCode: string,
+  preferences: DepartmentPreferences
+): Promise<void> => {
+  return fetchApi<void>(`/departments/${departmentCode}/preferences`, {
+    method: 'PUT',
+    body: JSON.stringify(preferences),
   });
 };
 
