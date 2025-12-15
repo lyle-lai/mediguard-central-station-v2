@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SystemSettings, Department } from '../../types';
 import { Building2, AlertTriangle, Save, Edit2 } from 'lucide-react';
 
@@ -19,9 +19,10 @@ const BedCapacityControl: React.FC<BedCapacityControlProps> = ({ settings, onSav
 
     // Sync state if external settings change
     useEffect(() => {
-        setPendingCapacity(settings.deptCapacity[currentDepartment] || 16);
+        const currentCapacity = settings.deptCapacity[currentDepartment];
+        setPendingCapacity(currentCapacity || 16);
         setIsConfirmingCapacity(false);
-    }, [currentDepartment, settings.deptCapacity]);
+    }, [currentDepartment, settings.deptCapacity[currentDepartment]]);
 
     const handleApplyCapacityChange = () => {
         // Check if actually changed
@@ -59,13 +60,16 @@ const BedCapacityControl: React.FC<BedCapacityControlProps> = ({ settings, onSav
     const hasUnsavedChanges = pendingCapacity !== settings.deptCapacity[currentDepartment];
     const deptPrefix = 'Bed';
 
-    // Generate Bed Grid for Visualization
-    const bedGrid = [];
-    for (let i = 1; i <= pendingCapacity; i++) {
-        const bedNum = `${deptPrefix}-${String(i).padStart(2, '0')}`;
-        const customLabel = settings.bedLabels?.[currentDepartment]?.[bedNum];
-        bedGrid.push({ bedNum, label: customLabel || bedNum });
-    }
+    // Generate Bed Grid for Visualization - 使用 useMemo 确保实时更新
+    const bedGrid = useMemo(() => {
+        const grid = [];
+        for (let i = 1; i <= pendingCapacity; i++) {
+            const bedNum = `${deptPrefix}-${String(i).padStart(2, '0')}`;
+            const customLabel = settings.bedLabels?.[currentDepartment]?.[bedNum];
+            grid.push({ bedNum, label: customLabel || bedNum });
+        }
+        return grid;
+    }, [pendingCapacity, settings.bedLabels, currentDepartment]);
 
     return (
         <div className="bg-med-card border border-gray-700 rounded-xl p-6 shadow-lg flex flex-col gap-6 mb-8">

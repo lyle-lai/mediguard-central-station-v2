@@ -154,8 +154,10 @@ export const dischargePatientApi = async (patientId: string): Promise<void> => {
   });
 };
 
-export const updatePatientConfigApi = async (patientId: string, settings: PatientDisplaySettings): Promise<void> => {
-  return fetchApi<void>(`/patients/${patientId}/config`, {
+// 更新床位显示配置
+// 注意: 后端使用 bedNumber 而非 patientId
+export const updatePatientConfigApi = async (bedNumber: string, settings: PatientDisplaySettings): Promise<void> => {
+  return fetchApi<void>(`/patients/beds/${bedNumber}/config`, {
     method: 'PUT',
     body: JSON.stringify(settings),
   });

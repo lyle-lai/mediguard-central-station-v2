@@ -67,7 +67,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <div className="flex justify-between">
                                     <span>{dept.name}</span>
                                     <span className="text-xs bg-gray-800 px-1.5 py-0.5 rounded text-gray-500">
-                                        {dept.capacity ?? settings.deptCapacity[dept.code]}床
+                                        {settings.deptCapacity[dept.code] || dept.capacity || 16}床
                                     </span>
                                 </div>
                             </button>

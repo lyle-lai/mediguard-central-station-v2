@@ -1,7 +1,10 @@
 import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 import { DeviceRealtimeDataDTO } from '../types';
 
-const SOCKET_URL = 'ws://localhost:8080/ws-vitalsigns';
+// WebSocket 端点配置
+// 后端配置: context-path=/api, STOMP endpoint=/ws-mediguard with SockJS
+const SOCKET_URL = 'http://localhost:8080/api/ws-mediguard';
 const TOPIC_VITALS = '/topic/vitals';
 
 let client: Client | null = null;
@@ -12,51 +15,67 @@ export const connectWebSocket = (onMessage: (data: DeviceRealtimeDataDTO[]) => v
   messageCallback = onMessage;
 
   if (client && client.active) {
-    console.log("WebSocket already active, updated callback");
+    console.log("✅ WebSocket已激活，更新回调");
     return;
   }
 
   if (client) {
-    // Client exists but not active, try to activate or recreate?
-    // Safer to deactivate first if in weird state
+    // 清理旧连接
     try { client.deactivate(); } catch (e) { }
   }
 
-  console.log("Initializing WebSocket Client...");
+  console.log("🔄 初始化SockJS+STOMP客户端...");
+
   client = new Client({
-    brokerURL: SOCKET_URL,
+    // 使用SockJS作为WebSocket传输层
+    webSocketFactory: () => new SockJS(SOCKET_URL) as any,
+
+    debug: (str) => {
+      console.log('📡 [STOMP Debug]', str);
+    },
+
     reconnectDelay: 5000,
     heartbeatIncoming: 4000,
     heartbeatOutgoing: 4000,
+
     onConnect: () => {
-      console.log('WebSocket Connected');
+      console.log('✅ WebSocket已连接');
+
       client?.subscribe(TOPIC_VITALS, (message) => {
         if (message.body && messageCallback) {
           try {
             const data: DeviceRealtimeDataDTO[] = JSON.parse(message.body);
+            console.log('📥 [WebSocket] 接收数据:', data.length, '个设备');
             messageCallback(data);
           } catch (e) {
-            console.error("Failed to parse WS message", e);
+            console.error('❌ [WebSocket] 解析消息失败:', e);
           }
         }
       });
     },
+
     onStompError: (frame) => {
-      console.error('Broker reported error: ' + frame.headers['message']);
-      console.error('Additional details: ' + frame.body);
+      console.error('❌ STOMP错误:', frame.headers['message']);
+      console.error('详细信息:', frame.body);
     },
+
     onWebSocketClose: () => {
-      console.log("WebSocket Closed");
+      console.log('🔌 WebSocket已关闭');
+    },
+
+    onWebSocketError: (error) => {
+      console.error('❌ WebSocket错误:', error);
     }
   });
 
   client.activate();
+  console.log('🚀 STOMP客户端已激活');
 };
 
 export const disconnectWebSocket = () => {
-  messageCallback = null; // Stop processing messages immediately
+  messageCallback = null;
   if (client) {
-    console.log("Deactivating WebSocket...");
+    console.log("🔌 断开WebSocket连接...");
     client.deactivate();
     client = null;
   }

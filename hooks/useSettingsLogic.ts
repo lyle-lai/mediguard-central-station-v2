@@ -54,7 +54,7 @@ export const useSettingsLogic = (
         } else {
             addToast('床位设置已更新 (演示)', 'success');
         }
-    }, [settings.isDemoMode, selectedDepartment, setSettings, addToast]);
+    }, [settings.isDemoMode, selectedDepartment, setSettings, addToast, settings.deptCapacity]);
 
     const handleSaveDeviceWaveforms = useCallback(async (deviceType: DeviceType, waveforms: WaveformConfig[]) => {
         setSettings(prev => ({

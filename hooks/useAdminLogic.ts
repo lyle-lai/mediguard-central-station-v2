@@ -88,11 +88,13 @@ export const useAdminLogic = (
     }, [settings.isDemoMode, settings.deptCapacity, setSettings, addToast]);
 
     const handleUpdateAdminCapacity = useCallback(async (code: string, capacity: number) => {
+        setSettings(prev => ({
+            ...prev,
+            deptCapacity: { ...prev.deptCapacity, [code]: capacity }
+        }));
+        setDepartmentList(prev => prev.map(d => d.code === code ? { ...d, capacity } : d));
+
         if (settings.isDemoMode) {
-            setSettings(prev => ({
-                ...prev,
-                deptCapacity: { ...prev.deptCapacity, [code]: capacity }
-            }));
             addToast('容量已更新 (模拟)', 'success');
         } else {
             try {
@@ -102,7 +104,6 @@ export const useAdminLogic = (
                 addToast('更新失败', 'error');
             }
         }
-        setDepartmentList(prev => prev.map(d => d.code === code ? { ...d, capacity } : d));
     }, [settings.isDemoMode, settings.bedLabels, setSettings, addToast]);
 
     return {

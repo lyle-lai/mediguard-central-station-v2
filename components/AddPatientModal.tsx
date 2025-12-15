@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Department, DeviceType, PatientData, IoTDevice } from '../types';
+import { Department, DeviceType, PatientData, IoTDevice, SystemSettings } from '../types';
 import { fetchAvailableIoTDevices } from '../services/iotSimulator';
+import { fetchAvailableDevicesApi } from '../services/apiService';
 import { X, Save, Monitor, Building2, User, RefreshCw, Wifi, Lock } from 'lucide-react';
 
 interface AddPatientModalProps {
@@ -12,6 +13,7 @@ interface AddPatientModalProps {
   initialBedNumber?: string;
   occupiedBeds: string[]; // List of currently used bed numbers
   capacity: number; // Total capacity for this department
+  settings?: SystemSettings; // 添加settings以判断Demo模式
 }
 
 const AddPatientModal: React.FC<AddPatientModalProps> = ({
@@ -21,7 +23,8 @@ const AddPatientModal: React.FC<AddPatientModalProps> = ({
   currentDepartment,
   initialBedNumber,
   occupiedBeds,
-  capacity
+  capacity,
+  settings
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -77,14 +80,26 @@ const AddPatientModal: React.FC<AddPatientModalProps> = ({
   const loadDevices = async () => {
     setIsLoadingDevices(true);
     try {
-      const devices = await fetchAvailableIoTDevices();
+      let devices: IoTDevice[];
+
+      // 根据Demo模式选择数据源
+      if (settings?.isDemoMode) {
+        // Demo模式: 使用模拟数据
+        devices = await fetchAvailableIoTDevices();
+      } else {
+        // 真实模式: 调用后端API
+        devices = await fetchAvailableDevicesApi();
+      }
+
+      // 按科室排序,当前科室优先
       setAvailableDevices(devices.sort((a, b) => {
         if (a.department === currentDepartment && b.department !== currentDepartment) return -1;
         if (a.department !== currentDepartment && b.department === currentDepartment) return 1;
         return 0;
       }));
     } catch (e) {
-      console.error(e);
+      console.error('Failed to load devices:', e);
+      setAvailableDevices([]); // 失败时设置为空数组
     } finally {
       setIsLoadingDevices(false);
     }

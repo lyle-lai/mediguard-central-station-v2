@@ -5,6 +5,19 @@ import { fetchAllPatientsApi, fetchAlarmHistoryApi, fetchGlobalConfig } from '..
 import { connectWebSocket, disconnectWebSocket } from '../services/websocketService';
 import { MAX_WAVEFORM_POINTS, DEFAULT_DEVICE_CONFIGS, UPDATE_INTERVAL_MS } from '../constants';
 
+// 兼容性更好的 UUID 生成函数
+const generateUUID = (): string => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback: 简单的 UUID v4 实现
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
+
 export const useRealtimeData = (
     settings: SystemSettings,
     currentUser: User | null,
@@ -70,7 +83,7 @@ export const useRealtimeData = (
 
                     if (!isDuplicate) {
                         newAlarms.push({
-                            id: crypto.randomUUID(),
+                            id: generateUUID(),
                             timestamp: new Date(),
                             patientId: p.id,
                             patientName: p.name,

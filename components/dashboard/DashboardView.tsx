@@ -56,7 +56,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
             });
         }
         return slots;
-    }, [currentDeptCapacity, currentBedLabels, patients, sortByOccupancy]);
+    }, [currentDeptCapacity, currentBedLabels, patients, sortByOccupancy, settings.deptCapacity, settings.bedLabels, selectedDepartment]);
 
     // --- Layout Config ---
     const layoutConfig = useMemo(() => {

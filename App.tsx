@@ -316,6 +316,7 @@ const App: React.FC = () => {
                 initialBedNumber={selectedEmptyBed}
                 occupiedBeds={occupiedBeds}
                 capacity={currentDeptCapacity}
+                settings={settings}
             />
         </div>
     );

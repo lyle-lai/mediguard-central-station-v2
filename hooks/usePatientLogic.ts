@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { PatientData, VitalStatus, SystemSettings } from '../types';
 import { admitPatientApi, fetchAllPatientsApi, dischargePatientApi, updatePatientConfigApi } from '../services/apiService';
 import { ToastType } from '../components/Toast';
@@ -54,10 +54,25 @@ export const usePatientLogic = (
             addToast('配置已保存', 'success');
         } else {
             try {
-                await updatePatientConfigApi(pid, cfg);
+                // 找到患者的床位号
+                const patient = await new Promise<PatientData | undefined>((resolve) => {
+                    setPatients(prev => {
+                        resolve(prev.find(p => p.id === pid));
+                        return prev;
+                    });
+                });
+
+                if (!patient) {
+                    addToast('患者不存在', 'error');
+                    return;
+                }
+
+                // 使用床位号调用API
+                await updatePatientConfigApi(patient.bedNumber, cfg);
                 setPatients(prev => prev.map(p => p.id === pid ? { ...p, displaySettings: cfg } : p));
                 addToast('配置已同步', 'success');
             } catch (e) {
+                console.error('Failed to save bed config:', e);
                 addToast('保存失败', 'error');
             }
         }
